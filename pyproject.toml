@@ -33,6 +33,9 @@ server = [
     "watchfiles>=0.21",
 ]
 all = ["eva[dev,server]"]
+llm = [
+    "litellm>=1.82.0",
+]
 
 [project.entry-points."eva.evaluators"]
 # Third-party evaluator plugins register here
