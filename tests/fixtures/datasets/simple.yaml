@@ -1,0 +1,11 @@
+name: refund_suite
+target: http://localhost:8000/chat
+evaluators:
+  - name: contains
+    mode: binary
+tests:
+  - id: test_01
+    input: "Refund order 123"
+  - id: test_02
+    input: "What is my balance?"
+    expected_output: "balance"
