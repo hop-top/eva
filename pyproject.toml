@@ -1,0 +1,61 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "eva"
+version = "0.1.0"
+requires-python = ">=3.11"
+# Version strategy: >=x.y,<x+1 for stable deps; ==x.y.z for prototype deps (agntcy-acp)
+# See docs/research/dependency-trust.md for rationale
+dependencies = [
+    "typer>=0.12",
+    "rich>=13",
+    "pluggy>=1.4",
+    "sqlmodel>=0.0.21",
+    "pyyaml>=6",
+    "jsonschema>=4.23",
+    "python-dotenv>=1",
+    "httpx>=0.27",
+]
+
+[project.scripts]
+eva = "cli.main:app"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+]
+server = [
+    "fastapi>=0.111",
+    "arq>=0.27,<1",
+    "watchfiles>=0.21",
+]
+all = ["eva[dev,server]"]
+
+[project.entry-points."eva.evaluators"]
+# Third-party evaluator plugins register here
+
+[project.entry-points."eva.storage"]
+# Storage adapter plugins register here
+
+[project.entry-points."eva.state"]
+# State adapter plugins register here
+
+[project.entry-points."eva.otel"]
+# OTEL exporter plugins register here
+
+[tool.hatch.build.targets.wheel]
+packages = ["core", "cli"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = ["--strict-markers", "-v"]
+markers = [
+    "asyncio: async tests",
+    "integration: integration tests requiring external services",
+    "slow: slow-running tests",
+    "e2e: end-to-end CLI tests",
+]
