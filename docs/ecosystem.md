@@ -40,14 +40,16 @@ For paid agent services — payment conditional on contract fulfillment.
 
 ## Built on Eva Plugins Interface
 
-### Domain-Specific Evaluator Marketplaces
-Third-party evaluator packages for specific industries.
+### Domain-Specific Evaluator Packages
+Third-party evaluator packages for specific industries. These are the reference examples of what the ecosystem should build — Eva does not own them.
 
-- `eva-evaluators-finance` — discount policy, regulatory compliance, KYC checks
-- `eva-evaluators-healthcare` — HIPAA-aware content, medical accuracy
-- `eva-evaluators-legal` — contract language, jurisdiction checks
+- `eva-evaluators-finance` — discount policy, regulatory compliance, KYC checks (e.g. `max_discount_policy`, `no_unauthorized_refund`, `price_within_range`)
+- `eva-evaluators-healthcare` — HIPAA-aware content, medical accuracy (e.g. `no_medical_advice`, `hipaa_safe`)
+- `eva-evaluators-legal` — contract language, jurisdiction checks (e.g. `no_legal_advice`, `jurisdiction_mention`)
 - `eva-evaluators-ecommerce` — product policy, returns, inventory accuracy
 - Community-published evaluators on PyPI
+
+Each follows the same pattern: install, add to `eva.yaml`, works immediately. Eva provides the interface; domain experts provide the logic.
 
 ### Framework-Specific Adapters
 Beyond official A2A and MCP plugins.

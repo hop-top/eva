@@ -92,9 +92,9 @@ Gateway API stable. Ecosystem builders can depend on it.
 
 ---
 
-## Phase 4 — Hardening + Ecosystem Plugins
+## Phase 4 — Hardening + AGNTCY Alignment
 
-**Goal:** Production-grade reliability. Full AGNTCY alignment. Domain evaluator packages.
+**Goal:** Production-grade reliability. Full AGNTCY alignment.
 
 ### Eva Server Hardening
 - Auth + rate limiting on gateway
@@ -103,13 +103,11 @@ Gateway API stable. Ecosystem builders can depend on it.
 
 ### Official Plugin Deliverables
 - `eva-agntcy` — full AGNTCY/OASF alignment (ACP endpoint, OASF registry, SLIM messaging)
-- Domain-specific evaluator packages (marketplace tier):
-  - `eva-evaluators-finance` — discount policy, regulatory compliance
-  - `eva-evaluators-healthcare` — HIPAA-aware content checks
-  - `eva-evaluators-legal` — contract language validation
 
 ### Teams
 All teams contributing.
+
+> **Note:** Domain-specific evaluator packages (`eva-evaluators-finance`, `eva-evaluators-healthcare`, `eva-evaluators-legal`) are ecosystem deliverables — built by third parties on top of Eva's plugin interface. See `docs/ecosystem.md`.
 
 ---
 
