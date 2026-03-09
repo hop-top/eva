@@ -71,11 +71,40 @@ def contract_validate(path: Path = typer.Argument(..., help="Path to contract YA
         raise typer.Exit(1)
 
 
+@contract_app.command("diff")
+def contract_diff(
+    contract_a: Path = typer.Argument(..., help="Path to base contract YAML"),
+    contract_b: Path = typer.Argument(..., help="Path to new contract YAML"),
+):
+    """Detect regressions between two contract YAML versions."""
+    from core.contract import load_contract, ContractValidationError
+    from core.contract_diff import diff_contracts, format_diff_report
+
+    try:
+        a = load_contract(contract_a)
+    except (FileNotFoundError, ContractValidationError) as e:
+        console.print(f"[red]Error loading {contract_a}:[/red] {e}")
+        raise typer.Exit(1)
+
+    try:
+        b = load_contract(contract_b)
+    except (FileNotFoundError, ContractValidationError) as e:
+        console.print(f"[red]Error loading {contract_b}:[/red] {e}")
+        raise typer.Exit(1)
+
+    report = diff_contracts(a, b)
+    format_diff_report(console, contract_a, contract_b, report)
+
+    if report.has_regressions:
+        raise typer.Exit(1)
+
+
 @app.command()
 def run(
     dataset: Path = typer.Option(..., "--dataset", help="Path to eval dataset (YAML or JSONL)"),
     target: str = typer.Option(None, "--target", help="Override target agent URL"),
     concurrency: int = typer.Option(1, "--concurrency", help="Number of concurrent tests"),
+    no_tui: bool = typer.Option(False, "--no-tui", help="Disable rich TUI (for CI)"),
 ):
     """Run evaluations against a target agent."""
     import asyncio
@@ -85,8 +114,11 @@ def run(
     from core.runner import Runner
     from core.storage import SqliteStorage
 
+    if target and not (target.startswith("http://") or target.startswith("https://")):
+        console.print("[red]Error:[/red] --target must start with http:// or https://")
+        raise typer.Exit(1)
+
     ds = load_dataset(dataset, target=target)
-    # Load user plugins if they exist
     pm = build_manager(plugin_file=Path("plugins.py"))
 
     async def call_agent(input: str, target_url: str) -> str:
@@ -95,22 +127,127 @@ def run(
             return resp.text
 
     runner = Runner(pm=pm, call_agent=call_agent, concurrency=concurrency)
-    eva_run = asyncio.run(runner.execute(ds))
 
-    # Basic output
+    if no_tui:
+        eva_run = asyncio.run(runner.execute(ds))
+        _print_plain(eva_run)
+    else:
+        eva_run = _run_with_tui(runner, ds)
+
+    storage = SqliteStorage()
+    storage.save_run(eva_run)
+
+    raise typer.Exit(0 if eva_run.passed else 1)
+
+
+def _print_plain(eva_run) -> None:
+    """Plain-text result output (CI / --no-tui mode)."""
     total = len(eva_run.results)
     passed = sum(1 for r in eva_run.results if r.passed)
     for r in eva_run.results:
         icon = "[green]✓[/green]" if r.passed else "[red]✗[/red]"
         console.print(f"  {icon} {r.test_id} ({r.duration_ms}ms)")
-
     console.print(f"\nResults: {passed}/{total} Passed.")
 
-    # In Phase 1, we just use default storage. In Phase 2+ we'll use EVA_STORAGE env.
-    storage = SqliteStorage()
-    storage.save_run(eva_run)
 
-    raise typer.Exit(0 if eva_run.passed else 1)
+def _run_with_tui(runner, ds):
+    """Execute runner with rich progress spinner and results table."""
+    import asyncio
+    import uuid
+    from datetime import datetime
+    from rich.progress import (
+        Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn,
+    )
+    from rich.table import Table
+    from core.models import Result, Run
+
+    total_tests = len(ds.tests)
+    progress = Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        console=console,
+    )
+
+    with progress:
+        ptask = progress.add_task(
+            f"[cyan]Evaluating {ds.name}[/cyan]", total=total_tests
+        )
+
+        async def _tracked():
+            started_at = datetime.utcnow()
+            run_id = str(uuid.uuid4())[:8]
+            semaphore = asyncio.Semaphore(runner.concurrency)
+            results = []
+
+            async def run_one(test):
+                async with semaphore:
+                    t0 = datetime.utcnow()
+                    runner.pm.hook.before_eval(test_id=test.id, context={})
+                    response = await runner.call_agent(test.input, ds.target)
+                    scores = runner.pm.hook.run_eval(
+                        response=response,
+                        context={"test": test.model_dump()},
+                    )
+                    t1 = datetime.utcnow()
+                    ms = int((t1 - t0).total_seconds() * 1000)
+                    batch = []
+                    for score in scores:
+                        r = Result(
+                            test_id=test.id,
+                            evaluator="unknown",
+                            score=score,
+                            mode="binary",
+                            min_score=1.0,
+                            duration_ms=ms,
+                        )
+                        runner.pm.hook.after_eval(
+                            test_id=test.id, score=score, context={}
+                        )
+                        batch.append(r)
+                    progress.advance(ptask)
+                    return batch
+
+            all_batches = await asyncio.gather(*[run_one(t) for t in ds.tests])
+            for batch in all_batches:
+                results.extend(batch)
+
+            t_end = datetime.utcnow()
+            ok = all(r.passed for r in results) if results else True
+            return Run(
+                run_id=run_id,
+                dataset=ds.name,
+                target=ds.target,
+                results=results,
+                started_at=started_at,
+                duration_ms=int((t_end - started_at).total_seconds() * 1000),
+                passed=ok,
+            )
+
+        eva_run = asyncio.run(_tracked())
+
+    table = Table(title="Evaluation Results", show_lines=False)
+    table.add_column("Sample", style="cyan")
+    table.add_column("Evaluator", style="magenta")
+    table.add_column("Score", justify="right")
+    table.add_column("Pass", justify="center")
+    table.add_column("Reason")
+    for r in eva_run.results:
+        table.add_row(
+            r.test_id,
+            r.evaluator,
+            f"{r.score.value:.2f}",
+            "[green]✓[/green]" if r.passed else "[red]✗[/red]",
+            r.score.reason or "",
+        )
+    console.print(table)
+
+    total = len(eva_run.results)
+    n_passed = sum(1 for r in eva_run.results if r.passed)
+    status = "[green]PASSED[/green]" if eva_run.passed else "[red]FAILED[/red]"
+    console.print(f"\n{status}  {n_passed}/{total} passed  ({eva_run.duration_ms}ms)")
+    return eva_run
 
 
 if __name__ == "__main__":

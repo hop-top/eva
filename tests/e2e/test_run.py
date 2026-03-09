@@ -65,3 +65,46 @@ def test_eva_run_exit_code_zero_on_pass(tmp_path):
         assert result.returncode == 0
     finally:
         server.shutdown()
+
+
+def test_eva_run_jsonl_dataset(tmp_path):
+    """JSONL dataset loaded via --dataset; --target required and validated."""
+    server = start_fake_agent(18997)
+    try:
+        result = run_eva(
+            "run",
+            "--dataset", str(FIXTURES / "e2e_suite.jsonl"),
+            "--target", "http://127.0.0.1:18997/chat",
+            "--no-tui",
+        )
+        # No evaluators registered for bare JSONL run → empty results → passed
+        assert result.returncode == 0
+    finally:
+        server.shutdown()
+
+
+def test_eva_run_target_url_validation():
+    """--target must be http:// or https://; else exit 1 before any network call."""
+    result = run_eva(
+        "run",
+        "--dataset", str(FIXTURES / "e2e_suite.yaml"),
+        "--target", "ftp://bad-url",
+    )
+    assert result.returncode == 1
+    assert "http" in result.stdout.lower()
+
+
+def test_eva_run_no_tui_flag():
+    """--no-tui flag produces plain-text output (no rich progress bars)."""
+    server = start_fake_agent(18996)
+    try:
+        result = run_eva(
+            "run",
+            "--dataset", str(FIXTURES / "e2e_suite.yaml"),
+            "--target", "http://127.0.0.1:18996/chat",
+            "--no-tui",
+        )
+        assert result.returncode == 0
+        assert "passed" in result.stdout.lower() or "results" in result.stdout.lower()
+    finally:
+        server.shutdown()
