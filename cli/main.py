@@ -50,5 +50,26 @@ def init():
     console.print(f"Created [green]{env_file.name}[/green]")
 
 
+contract_app = typer.Typer()
+app.add_typer(contract_app, name="contract")
+
+
+@contract_app.command("validate")
+def contract_validate(path: Path = typer.Argument(..., help="Path to contract YAML file")):
+    """Validate a contract YAML file."""
+    from core.contract import load_contract, ContractValidationError
+    try:
+        contract = load_contract(path)
+        console.print(f"[green]Valid[/green] contract: [bold]{contract.name}[/bold]")
+        console.print(f"  Provider: {contract.provider}")
+        console.print(f"  Evaluators: {len(contract.evaluators)}")
+    except FileNotFoundError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+    except ContractValidationError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+
+
 if __name__ == "__main__":
     app()
