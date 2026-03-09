@@ -1,0 +1,17 @@
+name: refund_policy
+provider: billing-agent
+consumer: support-agent
+request_schema:
+  type: object
+  required: [order_id]
+  properties:
+    order_id:
+      type: string
+evaluators:
+  - name: json_schema_valid
+    mode: binary
+  - name: no_discount_violation
+    mode: binary
+retry_policy:
+  max_retries: 3
+  hint: "Ensure response is valid JSON and discount is <= 20%"
