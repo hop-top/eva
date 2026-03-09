@@ -307,6 +307,7 @@ source = { editable = "." }
 dependencies = [
     { name = "httpx" },
     { name = "jsonschema" },
+    { name = "litellm" },
     { name = "pluggy" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
@@ -349,6 +350,7 @@ requires-dist = [
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.111" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "jsonschema", specifier = ">=4.23" },
+    { name = "litellm", specifier = ">=1.82.0" },
     { name = "litellm", marker = "extra == 'llm'", specifier = ">=1.82.0" },
     { name = "pluggy", specifier = ">=1.4" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },

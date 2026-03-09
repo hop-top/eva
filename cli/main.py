@@ -185,7 +185,7 @@ def _run_with_tui(runner, ds):
         async def _tracked():
             started_at = datetime.utcnow()
             run_id = str(uuid.uuid4())[:8]
-            semaphore = asyncio.Semaphore(runner.concurrency)
+            semaphore = asyncio.Semaphore(runner.max_workers)
             results = []
 
             async def run_one(test):
