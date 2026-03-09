@@ -34,9 +34,12 @@ server = [
     "watchfiles>=0.21",
 ]
 redis = [
-    "redis[asyncio]>=5",
+    "redis>=5",
 ]
-all = ["eva[dev,server,redis]"]
+llm = [
+    "litellm>=1.82.0",
+]
+all = ["eva[dev,server,redis,llm]"]
 
 [project.entry-points."eva.evaluators"]
 # Third-party evaluator plugins register here
