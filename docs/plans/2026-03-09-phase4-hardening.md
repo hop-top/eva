@@ -1432,6 +1432,54 @@ git commit -m "feat(plugins): eva-agntcy — ACP manifest endpoint + OASF local 
 
 **Goal:** Verify that all Phase 4 components work together end-to-end in a single integration test that runs the Eva server with auth + rate limiting active, triggers a contract violation, and checks that the webhook is called and a 200 structured error is returned to the client.
 
+**Step 0: Update tests/conftest.py with Phase 4 shared fixtures**
+
+Add the following fixtures to `tests/conftest.py` before writing the smoke test. These are shared across Phase 4 test modules and make the valid-key pattern reusable without duplicating mock boilerplate in each file.
+
+```python
+# Add to tests/conftest.py
+import pytest
+
+
+@pytest.fixture
+def valid_api_key():
+    return "eva_test_key_phase4"
+
+
+@pytest.fixture
+def mock_state_valid_key(valid_api_key):
+    """Fixture that makes a test API key appear valid in Redis state."""
+    from unittest.mock import AsyncMock, patch
+
+    async def fake_get(key):
+        if key == f"eva:apikey:{valid_api_key}":
+            return "1"
+        return None
+
+    with patch("server.auth.state_adapter") as mock:
+        mock.get = AsyncMock(side_effect=fake_get)
+        yield mock
+```
+
+**Step 0b: Verify pytest.ini_options has --strict-markers and integration marker**
+
+Before running the smoke test, confirm that `pyproject.toml` has `--strict-markers` in `addopts` and the `integration` marker declared in `[tool.pytest.ini_options]`. Running under `--strict-markers` without this declaration will cause a collection error:
+
+```toml
+# pyproject.toml — verify or add
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "asyncio: async tests",
+    "integration: requires external services — run with --integration flag",
+    "slow: slow-running tests",
+    "e2e: end-to-end CLI tests via subprocess",
+    "llm: tests that would make real LLM calls if not mocked",
+]
+addopts = ["--strict-markers", "-v"]
+```
+
 **Step 1: Write the integration smoke test**
 
 ```python
