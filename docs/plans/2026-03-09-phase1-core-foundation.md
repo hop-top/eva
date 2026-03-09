@@ -36,6 +36,8 @@ build-backend = "hatchling.build"
 name = "eva"
 version = "0.1.0"
 requires-python = ">=3.11"
+# Version strategy: >=x.y,<x+1 for stable deps; ==x.y.z for prototype deps (agntcy-acp)
+# See docs/research/dependency-trust.md for rationale
 dependencies = [
     "typer>=0.12",
     "rich>=13",
@@ -55,10 +57,35 @@ dev = [
     "pytest-asyncio>=0.23",
     "httpx>=0.27",
 ]
+server = [
+    "fastapi>=0.111",
+    "arq>=0.27,<1",
+    "watchfiles>=0.21",
+]
+all = ["eva[dev,server]"]
+
+[project.entry-points."eva.evaluators"]
+# Third-party evaluator plugins register here
+
+[project.entry-points."eva.storage"]
+# Storage adapter plugins register here
+
+[project.entry-points."eva.state"]
+# State adapter plugins register here
+
+[project.entry-points."eva.otel"]
+# OTEL exporter plugins register here
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = ["--strict-markers", "-v"]
+markers = [
+    "asyncio: async tests",
+    "integration: integration tests requiring external services",
+    "slow: slow-running tests",
+    "e2e: end-to-end CLI tests",
+]
 ```
 
 **Step 2: Create minimal package files**
@@ -97,7 +124,56 @@ git commit -m "chore: project scaffold — Eva Core Phase 1"
 
 ---
 
-## Task 2: Core data models
+## Task 2: Shared test fixtures (conftest.py)
+
+**Files:**
+- Create: `tests/conftest.py`
+- Create: `tests/fixtures/contracts/valid.yaml` (referenced by `contract_fixture`; also created in Task 4)
+- Create: `tests/fixtures/datasets/simple.yaml` (referenced by `dataset_fixture`; also created in Task 8)
+
+**Step 1: Create `tests/conftest.py`**
+
+```python
+# tests/conftest.py
+import pytest
+from pathlib import Path
+from core.contract import load_contract
+from core.dataset import load_dataset
+from core.storage import SqliteStorage
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture
+def contract_fixture():
+    """Load the canonical valid contract fixture."""
+    return load_contract(FIXTURES / "contracts" / "valid.yaml")
+
+
+@pytest.fixture
+def dataset_fixture():
+    """Load the canonical simple YAML dataset fixture."""
+    return load_dataset(FIXTURES / "datasets" / "simple.yaml")
+
+
+@pytest.fixture
+def sqlite_storage():
+    """Return an in-memory SQLite storage instance (no disk I/O)."""
+    return SqliteStorage(db_url="sqlite:///:memory:")
+```
+
+> Note: `tmp_path` is a built-in pytest fixture — no conftest entry needed for it.
+
+**Step 2: Commit**
+
+```bash
+git add tests/conftest.py
+git commit -m "test: shared conftest fixtures — contract, dataset, sqlite_storage"
+```
+
+---
+
+## Task 3: Core data models
 
 **Files:**
 - Create: `core/models.py`
@@ -264,7 +340,7 @@ git commit -m "feat(core): data models — Score, Result, Contract, Run"
 
 ---
 
-## Task 3: Contract YAML loader
+## Task 4: Contract YAML loader
 
 **Files:**
 - Create: `core/contract.py`
@@ -383,7 +459,7 @@ git commit -m "feat(core): contract YAML loader with validation"
 
 ---
 
-## Task 4: Evaluator interface + pluggy hook system
+## Task 5: Evaluator interface + pluggy hook system
 
 **Files:**
 - Create: `core/plugins.py`
@@ -512,7 +588,7 @@ git commit -m "feat(core): pluggy hook system — before_eval, run_eval, after_e
 
 ---
 
-## Task 5: Built-in deterministic evaluators (Tier 1)
+## Task 6: Built-in deterministic evaluators (Tier 1)
 
 **Files:**
 - Create: `core/evaluators/contains.py`
@@ -714,7 +790,7 @@ git commit -m "feat(core): deterministic evaluators — contains, regex, json_sc
 
 ---
 
-## Task 6: Plugin loader (file-based + entry_points)
+## Task 7: Plugin loader (file-based + entry_points)
 
 **Files:**
 - Create: `core/loader.py`
@@ -843,7 +919,7 @@ git commit -m "feat(core): plugin loader — file-based and entry_points"
 
 ---
 
-## Task 7: Dataset loader (YAML + JSONL)
+## Task 8: Dataset loader (YAML + JSONL)
 
 **Files:**
 - Create: `core/dataset.py`
@@ -987,7 +1063,7 @@ git commit -m "feat(core): dataset loader — YAML and JSONL formats"
 
 ---
 
-## Task 8: SQLite storage adapter
+## Task 9: SQLite storage adapter
 
 **Files:**
 - Create: `core/storage.py`
@@ -1144,7 +1220,7 @@ git commit -m "feat(core): SQLite storage adapter via SQLModel"
 
 ---
 
-## Task 9: Runner — sequential execution
+## Task 10: Runner — sequential execution
 
 **Files:**
 - Create: `core/runner.py`
@@ -1334,7 +1410,7 @@ git commit -m "feat(core): async runner with semaphore concurrency"
 
 ---
 
-## Task 10: `eva init` CLI command
+## Task 11: `eva init` CLI command
 
 **Files:**
 - Modify: `cli/main.py`
@@ -1460,7 +1536,7 @@ git commit -m "feat(cli): eva init — scaffold project structure"
 
 ---
 
-## Task 11: `eva contract validate` CLI command
+## Task 12: `eva contract validate` CLI command
 
 **Files:**
 - Modify: `cli/main.py`
@@ -1555,7 +1631,7 @@ git commit -m "feat(cli): eva contract validate"
 
 ---
 
-## Task 12: `eva run` CLI command (E2E)
+## Task 13: `eva run` CLI command (E2E)
 
 **Files:**
 - Modify: `cli/main.py`
@@ -1723,7 +1799,7 @@ git commit -m "feat(cli): eva run — async eval runner with exit codes"
 
 ---
 
-## Task 13: Final integration smoke test + Phase 1 gate
+## Task 14: Final integration smoke test + Phase 1 gate
 
 **Step 1: Run full test suite**
 
@@ -1809,7 +1885,8 @@ eva/
 │       ├── json_schema_valid.py
 │       └── no_pii.py
 ├── tests/
-│   ├── unit/
+│   ├── conftest.py              # Shared pytest fixtures: contract_fixture, dataset_fixture, sqlite_storage
+│   ├── unit/                    # Unit tests — no I/O, no subprocess
 │   │   ├── test_models.py
 │   │   ├── test_contract.py
 │   │   ├── test_dataset.py
@@ -1818,11 +1895,12 @@ eva/
 │   │   ├── test_runner.py
 │   │   ├── test_storage.py
 │   │   └── test_evaluators.py
-│   ├── e2e/
+│   ├── e2e/                     # E2E tests — subprocess calls to actual CLI
 │   │   ├── test_init.py
 │   │   ├── test_contract_validate.py
 │   │   └── test_run.py
-│   └── fixtures/
+│   ├── integration/             # Future (Phase 3+) — requires external services, mark @pytest.mark.integration
+│   └── fixtures/                # Static fixture files: YAML, JSONL, Python plugins
 │       ├── contracts/
 │       │   ├── valid.yaml
 │       │   └── invalid_missing_name.yaml
