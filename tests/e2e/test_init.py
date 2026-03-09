@@ -13,7 +13,7 @@ def test_eva_init_creates_structure(tmp_path):
     )
     assert result.returncode == 0
     assert (tmp_path / "evals").is_dir()
-    assert (tmp_path / "eva_plugins.py").exists()
+    assert (tmp_path / "plugins.py").exists()
     assert (tmp_path / ".env").exists()
 
 
@@ -25,7 +25,7 @@ def test_eva_init_output_mentions_created(tmp_path):
         text=True,
     )
     assert "evals" in result.stdout
-    assert "eva_plugins.py" in result.stdout
+    assert "plugins.py" in result.stdout
 
 
 def test_eva_init_idempotent(tmp_path):

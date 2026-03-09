@@ -39,7 +39,7 @@ def init():
     evals_dir.mkdir(exist_ok=True)
     console.print(f"Created [green]{evals_dir.relative_to(cwd)}/[/green]")
 
-    plugins_file = cwd / "eva_plugins.py"
+    plugins_file = cwd / "plugins.py"
     if not plugins_file.exists():
         plugins_file.write_text(PLUGIN_TEMPLATE)
     console.print(f"Created [green]{plugins_file.name}[/green]")
@@ -87,7 +87,7 @@ def run(
 
     ds = load_dataset(dataset, target=target)
     # Load user plugins if they exist
-    pm = build_manager(plugin_file=Path("eva_plugins.py"))
+    pm = build_manager(plugin_file=Path("plugins.py"))
 
     async def call_agent(input: str, target_url: str) -> str:
         async with httpx.AsyncClient(timeout=30) as client:
