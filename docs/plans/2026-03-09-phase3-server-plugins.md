@@ -27,7 +27,7 @@
 
 **Files:**
 - Create: `server/__init__.py`
-- Create: `server/py.typed`
+- Create: `server/py.typed` — Required to mark the server package as PEP 561 typed — consumers get type checking support.
 - Create: `server/app.py`
 - Create: `server/gateway/__init__.py`
 - Create: `server/contracts/__init__.py`
@@ -1966,6 +1966,51 @@ git commit -m "feat(cli): eva serve command — starts FastAPI gateway with cont
 **Files:**
 - Create: `tests/e2e/test_server_e2e.py`
 
+**Step 0: Ensure pytest markers and conftest hook are declared**
+
+Add or update `[tool.pytest.ini_options]` in `pyproject.toml` to declare all markers used across Phase 3 tests. This is required when `--strict-markers` is active — any undeclared marker causes a collection error.
+
+```toml
+# pyproject.toml — [tool.pytest.ini_options]
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "asyncio: async tests",
+    "integration: requires external services — run with --integration flag",
+    "slow: slow-running tests",
+    "e2e: end-to-end CLI tests via subprocess",
+    "llm: tests that would make real LLM calls if not mocked",
+]
+addopts = ["--strict-markers", "-v"]
+```
+
+Also ensure `tests/conftest.py` contains the pytest hook that gates `integration`-marked tests behind `--integration`:
+
+```python
+# tests/conftest.py — add if not already present
+import pytest
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--integration",
+        action="store_true",
+        default=False,
+        help="Run tests that require external services (Postgres, Redis, etc.)",
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    if not config.getoption("--integration"):
+        skip = pytest.mark.skip(reason="Pass --integration to run integration tests")
+        for item in items:
+            if "integration" in item.keywords:
+                item.add_marker(skip)
+```
+
+> **Note:** The `--integration` flag must be declared in root `conftest.py` (not in individual plugin test files) so that it is visible to the pytest session regardless of which test paths are collected. Individual plugin conftest files that redeclare it will cause a duplicate-option error — remove any such redeclarations.
+
 **Step 1: Write the test**
 
 ```python
@@ -2108,6 +2153,23 @@ git commit -m "test(server): E2E integration tests — proxy pass-through and re
 ### Task 14: Plugin package scaffold
 
 Each plugin lives at `plugins/<name>/` as a separate installable package.
+
+> **Entry-point group prerequisite:** The core `pyproject.toml` (created in Phase 1) should already contain placeholder entry-point group tables (`[project.entry-points."eva.storage"]`, `[project.entry-points."eva.otel"]`, etc.) so that the groups are registered at package install time. Plugins created here register into those same groups. If the Phase 1 fix was not applied, add the group tables to the core `pyproject.toml` now before installing any plugin in development mode:
+>
+> ```toml
+> # pyproject.toml (core) — add if not already present
+> [project.entry-points."eva.storage"]
+> # populated by eva-postgres when installed
+>
+> [project.entry-points."eva.otel"]
+> # populated by eva-otlp when installed
+>
+> [project.entry-points."eva.a2a"]
+> # populated by eva-a2a when installed
+>
+> [project.entry-points."eva.mcp"]
+> # populated by eva-mcp when installed
+> ```
 
 **Files:**
 ```
