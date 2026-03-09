@@ -1,0 +1,9 @@
+name: e2e_suite
+target: http://localhost:18999/chat
+evaluators:
+  - name: contains
+    mode: binary
+tests:
+  - id: t1
+    input: "say hello"
+    expected_output: "hello"

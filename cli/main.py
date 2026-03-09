@@ -71,5 +71,47 @@ def contract_validate(path: Path = typer.Argument(..., help="Path to contract YA
         raise typer.Exit(1)
 
 
+@app.command()
+def run(
+    dataset: Path = typer.Option(..., "--dataset", help="Path to eval dataset (YAML or JSONL)"),
+    target: str = typer.Option(None, "--target", help="Override target agent URL"),
+    concurrency: int = typer.Option(1, "--concurrency", help="Number of concurrent tests"),
+):
+    """Run evaluations against a target agent."""
+    import asyncio
+    import httpx
+    from core.dataset import load_dataset
+    from core.loader import build_manager
+    from core.runner import Runner
+    from core.storage import SqliteStorage
+
+    ds = load_dataset(dataset, target=target)
+    # Load user plugins if they exist
+    pm = build_manager(plugin_file=Path("eva_plugins.py"))
+
+    async def call_agent(input: str, target_url: str) -> str:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(target_url, json={"input": input})
+            return resp.text
+
+    runner = Runner(pm=pm, call_agent=call_agent, concurrency=concurrency)
+    eva_run = asyncio.run(runner.execute(ds))
+
+    # Basic output
+    total = len(eva_run.results)
+    passed = sum(1 for r in eva_run.results if r.passed)
+    for r in eva_run.results:
+        icon = "[green]✓[/green]" if r.passed else "[red]✗[/red]"
+        console.print(f"  {icon} {r.test_id} ({r.duration_ms}ms)")
+
+    console.print(f"\nResults: {passed}/{total} Passed.")
+
+    # In Phase 1, we just use default storage. In Phase 2+ we'll use EVA_STORAGE env.
+    storage = SqliteStorage()
+    storage.save_run(eva_run)
+
+    raise typer.Exit(0 if eva_run.passed else 1)
+
+
 if __name__ == "__main__":
     app()

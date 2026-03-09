@@ -1,6 +1,7 @@
 # core/storage.py
 import json
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 from core.models import Run, Result, Score
@@ -18,6 +19,10 @@ class RunRecord(SQLModel, table=True):
 
 class SqliteStorage:
     def __init__(self, db_url: str = "sqlite:///.eva/state.db"):
+        if db_url.startswith("sqlite:///"):
+            path = Path(db_url.replace("sqlite:///", ""))
+            if not path.name == ":memory:":
+                path.parent.mkdir(parents=True, exist_ok=True)
         self.engine = create_engine(db_url)
         SQLModel.metadata.create_all(self.engine)
 
