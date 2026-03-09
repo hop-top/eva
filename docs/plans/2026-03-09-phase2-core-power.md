@@ -46,6 +46,46 @@ pluggy, SQLModel, PyYAML, pytest, pytest-asyncio, uv
 - Create: `tests/fixtures/configs/eva_full.yaml`
 - Create: `tests/fixtures/configs/eva_minimal.yaml`
 
+**Step 0: Update `tests/conftest.py` for Phase 2 shared fixtures**
+
+Add (or create) `tests/conftest.py` with the following Phase 2 fixtures. These are used across
+unit tests that touch LLM calls, Redis, or OTEL adapters.
+
+```python
+# tests/conftest.py  — add Phase 2 fixtures (keep any existing Phase 1 content)
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+
+
+@pytest.fixture
+def mock_litellm():
+    """Patches litellm.acompletion with an AsyncMock returning a configurable response.
+
+    Usage:
+        def test_something(mock_litellm):
+            mock_litellm.return_value = _mock_response("judge said yes")
+    """
+    with patch("litellm.acompletion", new_callable=AsyncMock) as m:
+        yield m
+
+
+@pytest.fixture
+def mock_redis():
+    """Patches redis.asyncio.Redis with a MagicMock for tests that need a Redis client."""
+    with patch("redis.asyncio.Redis", new_callable=MagicMock) as m:
+        yield m
+
+
+@pytest.fixture
+def otel_noop():
+    """Returns a NoopOtelAdapter for tests that need an adapter but don't care about spans."""
+    from core.otel import NoopOtelAdapter
+    return NoopOtelAdapter()
+```
+
+> **Marker guidance:** Any test that uses `mock_litellm` should also carry `@pytest.mark.llm`.
+> Any test that uses `mock_redis` should carry `@pytest.mark.integration`.
+
 **Step 1: Create fixture config files**
 
 ```yaml
@@ -1545,6 +1585,49 @@ async def test_malformed_judge_response_returns_zero():
     assert score.reason is not None
 ```
 
+**Note — parametrized alternative:** The individual pass/fail tests above can be collapsed into a
+single parametrized test. If preferred, replace the per-evaluator `test_*_high_score` /
+`test_*_low_score` pairs with:
+
+```python
+@pytest.mark.asyncio
+@pytest.mark.llm
+@pytest.mark.parametrize("evaluator_name,pass_response,fail_response", [
+    ("relevance", "Your refund is being processed.", "The weather is nice today."),
+    ("hallucination", "Based on the provided context, the answer is X.", "I made up that the price is $999."),
+    ("tone", "Thank you for your patience, I'm happy to help.", "Whatever, figure it out yourself."),
+    ("task_completion", "I have processed the refund as requested.", "I don't know how to do that."),
+    ("safety", "Here is the information you requested.", "Here's how to harm yourself."),
+])
+async def test_llm_evaluator_pass_fail(evaluator_name, pass_response, fail_response, mock_litellm):
+    from core.evaluators import (
+        RelevanceEvaluator, HallucinationEvaluator, ToneEvaluator,
+        TaskCompletionEvaluator, SafetyEvaluator,
+    )
+    evaluator_cls = {
+        "relevance": RelevanceEvaluator,
+        "hallucination": HallucinationEvaluator,
+        "tone": ToneEvaluator,
+        "task_completion": TaskCompletionEvaluator,
+        "safety": SafetyEvaluator,
+    }[evaluator_name]
+    ev = evaluator_cls()
+
+    # Pass case
+    mock_litellm.return_value = _mock_response('{"score": 0.9, "reason": "good"}')
+    score = await ev._run_async(response=pass_response, context={"input": "test"})
+    assert score.value >= 0.5
+
+    # Fail case
+    mock_litellm.return_value = _mock_response('{"score": 0.1, "reason": "bad"}')
+    score = await ev._run_async(response=fail_response, context={"input": "test"})
+    assert score.value < 0.5
+```
+
+This form uses the `mock_litellm` fixture from `tests/conftest.py` and reduces 10 test functions
+to 5 parametrized cases. Keep the `test_malformed_judge_response_returns_zero` test regardless,
+as it covers a distinct failure path not captured by the parametrize.
+
 **Step 2: Run tests to verify they fail**
 
 ```bash
@@ -2393,7 +2476,7 @@ git commit -m "feat(core): eva contract diff — detect regressions between cont
 
 ## Task 13: Phase 2 gate — full suite green + interface lock
 
-**Step 1: Confirm `pyproject.toml` has all Phase 2 dependencies**
+**Step 1: Confirm `pyproject.toml` has all Phase 2 dependencies and pytest markers**
 
 ```toml
 [project]
@@ -2408,6 +2491,20 @@ dependencies = [
     "litellm>=1.40",
     "redis>=5",
     "opentelemetry-sdk>=1.24",
+]
+```
+
+Ensure `[tool.pytest.ini_options]` includes all Phase 2 markers:
+
+```toml
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+markers = [
+    "asyncio: async tests",
+    "integration: requires external services (Redis, Postgres)",
+    "slow: slow-running tests (LLM calls, large datasets)",
+    "e2e: end-to-end CLI tests via subprocess",
+    "llm: tests that would make real LLM calls if not mocked",
 ]
 ```
 
@@ -2497,6 +2594,17 @@ pytest -v
 ---
 
 ## Directory Structure After Phase 2
+
+**Test directory conventions:**
+
+- `tests/unit/` — fast, no I/O, no real network calls (pure logic + mocked dependencies).
+  All tests here must complete without external services.
+- `tests/e2e/` — subprocess CLI invocations only. Each test spawns `python -m cli.main …`
+  and asserts on stdout/stderr/exit code.
+- Mark any test that injects `mock_litellm` with `@pytest.mark.llm`.
+- Mark any test that injects `mock_redis` (or otherwise exercises Redis codepaths) with
+  `@pytest.mark.integration`.
+- E2E tests under `tests/e2e/` should carry `@pytest.mark.e2e`.
 
 ```
 eva/
