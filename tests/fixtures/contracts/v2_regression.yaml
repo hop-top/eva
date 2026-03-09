@@ -1,0 +1,8 @@
+name: refund_policy_v2_regression
+provider: billing-agent
+evaluators:
+  - name: json_schema_valid
+    mode: binary
+  - name: contains
+    mode: threshold
+    min_score: 0.5

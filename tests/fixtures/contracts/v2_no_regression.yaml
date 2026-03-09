@@ -1,0 +1,12 @@
+name: refund_policy_v2_ok
+provider: billing-agent
+evaluators:
+  - name: json_schema_valid
+    mode: binary
+  - name: no_pii
+    mode: binary
+  - name: contains
+    mode: threshold
+    min_score: 0.9
+  - name: regex
+    mode: binary

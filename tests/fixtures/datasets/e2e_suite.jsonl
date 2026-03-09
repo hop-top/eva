@@ -1,0 +1,2 @@
+{"id": "t1", "input": "say hello", "expected_output": "hello"}
+{"id": "t2", "input": "greet me", "expected_output": "hello"}
