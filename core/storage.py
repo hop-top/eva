@@ -2,8 +2,9 @@
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 from sqlmodel import Field, Session, SQLModel, create_engine, select
+from core.adapters import StorageAdapter
 from core.models import Run, Result, Score
 
 
@@ -17,7 +18,7 @@ class RunRecord(SQLModel, table=True):
     results_json: str  # JSON-serialized list of results
 
 
-class SqliteStorage:
+class SqliteStorage(StorageAdapter):
     def __init__(self, db_url: str = "sqlite:///.eva/state.db"):
         if db_url.startswith("sqlite:///"):
             path = Path(db_url.replace("sqlite:///", ""))
@@ -25,6 +26,19 @@ class SqliteStorage:
                 path.parent.mkdir(parents=True, exist_ok=True)
         self.engine = create_engine(db_url)
         SQLModel.metadata.create_all(self.engine)
+
+    # ------------------------------------------------------------------ #
+    # StorageAdapter async interface                                        #
+    # ------------------------------------------------------------------ #
+
+    async def save_result(self, result: Any) -> None:
+        """Persist a Run (or any model with .model_dump()) via save_run."""
+        self.save_run(result)
+
+    async def load_results(self, run_id: str) -> list[Any]:
+        """Load all Result objects for a given run_id."""
+        run = self.get_run(run_id)
+        return run.results if run else []
 
     def save_run(self, run: Run) -> None:
         record = RunRecord(

@@ -17,6 +17,7 @@ dependencies = [
     "jsonschema>=4.23",
     "python-dotenv>=1",
     "httpx>=0.27",
+    "redis>=5",
 ]
 
 [project.scripts]
@@ -32,7 +33,10 @@ server = [
     "arq>=0.27,<1",
     "watchfiles>=0.21",
 ]
-all = ["eva[dev,server]"]
+redis = [
+    "redis[asyncio]>=5",
+]
+all = ["eva[dev,server,redis]"]
 
 [project.entry-points."eva.evaluators"]
 # Third-party evaluator plugins register here

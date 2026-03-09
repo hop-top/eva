@@ -33,6 +33,8 @@ def version():
 @app.command()
 def init():
     """Scaffold Eva project structure in the current directory."""
+    from core.config import _CONFIG_TEMPLATE, _CONFIG_FILENAME
+
     cwd = Path.cwd()
 
     evals_dir = cwd / "evals"
@@ -48,6 +50,11 @@ def init():
     if not env_file.exists():
         env_file.write_text(ENV_TEMPLATE)
     console.print(f"Created [green]{env_file.name}[/green]")
+
+    config_file = cwd / _CONFIG_FILENAME
+    if not config_file.exists():
+        config_file.write_text(_CONFIG_TEMPLATE)
+    console.print(f"Created [green]{_CONFIG_FILENAME}[/green]")
 
 
 contract_app = typer.Typer()
