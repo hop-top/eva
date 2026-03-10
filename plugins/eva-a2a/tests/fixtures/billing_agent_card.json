@@ -1,0 +1,30 @@
+{
+  "name": "billing-agent",
+  "description": "Handles billing and refund inquiries",
+  "capabilities": ["refund", "invoice"],
+  "skills": [
+    {
+      "name": "process_refund",
+      "description": "Process a refund for an order",
+      "inputSchema": {
+        "type": "object",
+        "required": ["order_id"],
+        "properties": {
+          "order_id": {"type": "string"},
+          "reason": {"type": "string"}
+        }
+      }
+    },
+    {
+      "name": "get_invoice",
+      "description": "Retrieve an invoice by ID",
+      "inputSchema": {
+        "type": "object",
+        "required": ["invoice_id"],
+        "properties": {
+          "invoice_id": {"type": "string"}
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "eva-a2a"
+version = "0.1.0"
+description = "Eva Plugin — Import A2A Agent Cards as Eva contracts"
+requires-python = ">=3.11"
+dependencies = [
+    "eva>=0.1.0",
+    "pyyaml>=6",
+    "typer>=0.12",
+]
+
+[project.scripts]
+eva-a2a = "eva_a2a.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["eva_a2a"]
