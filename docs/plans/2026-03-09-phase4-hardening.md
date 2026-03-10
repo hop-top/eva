@@ -4,7 +4,45 @@
 
 **Goal:** Production-grade reliability for Eva Server (auth, rate limiting, webhook emission, drift detection) and full AGNTCY/ACP alignment via the `eva-agntcy` official plugin.
 
-**Architecture:** Phase 4 touches two areas. Team Server owns Tasks 1–4 (gateway hardening). Team Plugins owns Task 5 (eva-agntcy). All work is additive — no changes to Phase 1–3 interfaces. The Redis state adapter from Phase 2 is the backbone of both rate limiting and drift detection storage.
+---
+
+## CE/EE Split
+
+**Community Edition (CE)** — ships in this repo (open source):
+- T-0090: `create_app(middleware_factories=None)` extension hook — CE prerequisite
+- T-0053: API key auth (`server/auth.py`)
+- T-0056: Drift detection (`server/drift.py` + `cli/commands/drift.py`)
+- T-0058 (partial): CE smoke test (`tests/server/test_phase4_ce.py`)
+
+**Enterprise Edition (EE)** — lives in `ee/` private git submodule:
+- T-0054: Rate limiting (`ee/server/ratelimit.py`) — requires Redis
+- T-0055: Webhook emission (`ee/server/webhooks.py`)
+- T-0057: eva-agntcy plugin (`ee/plugins/eva-agntcy/`)
+- T-0058 (partial): EE smoke test (`ee/tests/test_phase4_ee.py`)
+
+**Extension point:** `server/app.py` exposes `create_app(registry=None, middleware_factories=None)`.
+EE registers its middleware (auth, rate-limit, webhook) by passing factory callables —
+no changes to CE files required.
+
+**EE file layout:**
+```
+ee/
+  server/
+    ratelimit.py     # sliding-window Redis middleware
+    webhooks.py      # fire-and-forget httpx POST middleware
+  plugins/
+    eva-agntcy/      # ACP manifest + AGNTCY registry integration
+  tests/
+    conftest.py      # EE-specific fixtures
+    test_phase4_ee.py
+```
+
+---
+
+**Architecture:** CE owns Task 0 (middleware hook), Tasks 1 + 4 (auth, drift). EE owns Tasks 2, 3, 5
+(rate-limit, webhooks, eva-agntcy). All work is additive — no changes to Phase 1–3 interfaces.
+The Redis state adapter from Phase 2 backs EE rate limiting; SQLite storage adapter backs CE drift
+detection. EE middleware mounts via the `middleware_factories` hook — CE codebase stays unmodified.
 
 > **Note:** Domain-specific evaluator packages (finance, healthcare, legal) are ecosystem deliverables — not built by the Eva team. See `docs/ecosystem.md` for reference examples of what third parties should build.
 
@@ -19,7 +57,42 @@
 
 ---
 
+## Task 0: Middleware Extension Hook
+
+**Tier: CE** — T-0090
+
+**Files:**
+- Edit: `server/app.py` — extend `create_app()` signature
+
+**Change:**
+
+```python
+# server/app.py  (existing factory — add middleware_factories param)
+from typing import Callable, Sequence
+
+def create_app(
+    registry=None,
+    middleware_factories: Sequence[Callable] | None = None,
+) -> FastAPI:
+    app = FastAPI(...)
+    # ... existing setup ...
+    for factory in middleware_factories or []:
+        app.add_middleware(factory)
+    return app
+```
+
+**Test:** `tests/server/test_app_factory.py`
+- Instantiate `create_app(middleware_factories=[DummyMiddleware])`
+- Assert `DummyMiddleware` is called on a request — verifies hook is wired
+
+**Acceptance:** `create_app()` with no args behaves identically to current behaviour (no regression).
+EE can mount middleware by passing factory list — zero changes to CE files.
+
+---
+
 ## Task 1: API Key Authentication
+
+**Tier: CE** — T-0053
 
 **Files:**
 - Create: `server/auth.py`
@@ -195,8 +268,10 @@ git commit -m "feat(server): API key authentication middleware (X-Eva-Key header
 
 ## Task 2: Rate Limiting
 
+**Tier: EE** — T-0054
+
 **Files:**
-- Create: `server/ratelimit.py`
+- Create: `ee/server/ratelimit.py`
 - Create: `tests/server/test_ratelimit.py`
 - Edit: `server/main.py` — add rate limit middleware after auth
 
@@ -433,8 +508,10 @@ git commit -m "feat(server): sliding window rate limiting per API key (Redis-bac
 
 ## Task 3: Webhook Emission on Contract Violations
 
+**Tier: EE** — T-0055
+
 **Files:**
-- Create: `server/webhooks.py`
+- Create: `ee/server/webhooks.py`
 - Create: `tests/server/test_webhooks.py`
 - Edit: `server/gateway/proxy.py` — call webhook emitter after violation
 - Edit: `eva.yaml` — document webhook config
@@ -717,8 +794,10 @@ git commit -m "feat(server): webhook emission on contract violations (fire-and-f
 
 ## Task 4: Drift Detection + `eva drift report`
 
+**Tier: CE** — T-0056
+
 **Files:**
-- Create: `core/drift.py`
+- Create: `server/drift.py`
 - Create: `tests/unit/test_drift.py`
 - Create: `tests/e2e/test_drift_command.py`
 - Edit: `cli/main.py` — add `eva drift report` command
@@ -1079,8 +1158,10 @@ git commit -m "feat(core,cli): drift detection engine + eva drift report command
 
 ## Task 5: `eva-agntcy` — ACP Manifest Endpoint
 
+**Tier: EE** — T-0057
+
 **Files:**
-- Create: `plugins/eva-agntcy/pyproject.toml`
+- Create: `ee/plugins/eva-agntcy/pyproject.toml`
 - Create: `plugins/eva-agntcy/eva_agntcy/__init__.py`
 - Create: `plugins/eva-agntcy/eva_agntcy/acp.py`
 - Create: `plugins/eva-agntcy/eva_agntcy/oasf.py`
@@ -1427,8 +1508,10 @@ git commit -m "feat(plugins): eva-agntcy — ACP manifest endpoint + OASF local 
 
 ## Task 6: Phase 4 Full Test Suite + Integration Smoke Test
 
+**Tier: Split** — T-0058 (CE portion: `tests/server/test_phase4_ce.py`; EE portion: `ee/tests/test_phase4_ee.py`)
+
 **Files:**
-- Create: `tests/integration/test_phase4_smoke.py`
+- Create: `tests/server/test_phase4_ce.py`
 
 **Goal:** Verify that all Phase 4 components work together end-to-end in a single integration test that runs the Eva server with auth + rate limiting active, triggers a contract violation, and checks that the webhook is called and a 200 structured error is returned to the client.
 
