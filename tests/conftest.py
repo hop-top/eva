@@ -83,3 +83,52 @@ def otel_noop():
         return NoopOtelAdapter()
     except ImportError:
         pytest.skip("core.otel not available")
+
+
+# ------------------------------------------------------------------ #
+# Phase 4 fixtures                                                      #
+# ------------------------------------------------------------------ #
+
+
+@pytest.fixture
+def valid_api_key():
+    """Canonical Phase 4 test API key string."""
+    return "eva_test_key_phase4"
+
+
+@pytest.fixture
+def mock_state_valid_key(valid_api_key):
+    """Patch server.auth.state_adapter so that valid_api_key appears valid in Redis."""
+    from unittest.mock import AsyncMock, patch
+
+    async def fake_get(key: str):
+        if key == f"eva:apikey:{valid_api_key}":
+            return "1"
+        return None
+
+    with patch("server.auth.state_adapter") as mock:
+        mock.get = AsyncMock(side_effect=fake_get)
+        yield mock
+
+
+@pytest.fixture
+def redis_mock():
+    """AsyncMock Redis state adapter with incr/expire support (rate limiter + auth)."""
+    mock = AsyncMock()
+    mock.get = AsyncMock(return_value=None)
+    mock.set = AsyncMock(return_value=None)
+    mock.delete = AsyncMock(return_value=None)
+    mock.incr = AsyncMock(return_value=1)
+    mock.expire = AsyncMock(return_value=None)
+    return mock
+
+
+@pytest.fixture
+def auth_app(valid_api_key):
+    """FastAPI test app with ApiKeyMiddleware wired via middleware_factories."""
+    from unittest.mock import AsyncMock, patch
+    from server.app import create_app
+    from server.auth import ApiKeyMiddleware
+
+    app = create_app(middleware_factories=[ApiKeyMiddleware])
+    return app

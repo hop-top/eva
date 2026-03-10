@@ -1,0 +1,44 @@
+{
+  "runs": [
+    {
+      "run_id": "run_001",
+      "dataset": "compliance_dataset",
+      "target": "http://billing-agent/v1",
+      "started_at": "2026-03-01T10:00:00Z",
+      "duration_ms": 1200,
+      "passed": true,
+      "results": [
+        {
+          "test_id": "t1",
+          "evaluator": "response_quality",
+          "score": {"value": 0.9, "reason": null},
+          "mode": "threshold",
+          "min_score": 0.7,
+          "passed": true,
+          "duration_ms": 120,
+          "trace_id": null
+        }
+      ]
+    },
+    {
+      "run_id": "run_020",
+      "dataset": "compliance_dataset",
+      "target": "http://billing-agent/v1",
+      "started_at": "2026-03-09T10:00:00Z",
+      "duration_ms": 1100,
+      "passed": false,
+      "results": [
+        {
+          "test_id": "t1",
+          "evaluator": "response_quality",
+          "score": {"value": 0.5, "reason": "Quality degraded"},
+          "mode": "threshold",
+          "min_score": 0.7,
+          "passed": false,
+          "duration_ms": 110,
+          "trace_id": null
+        }
+      ]
+    }
+  ]
+}

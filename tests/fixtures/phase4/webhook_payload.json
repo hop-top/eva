@@ -1,0 +1,19 @@
+{
+  "event": "contract_violation",
+  "contract": "secure_agent",
+  "request_id": "req_fixture_001",
+  "attempts": 3,
+  "violations": [
+    {
+      "evaluator": "no_discount_violation",
+      "score": 0.0,
+      "reason": "Discount exceeds 20% policy limit"
+    },
+    {
+      "evaluator": "response_quality",
+      "score": 0.5,
+      "reason": "Score below threshold 0.7"
+    }
+  ],
+  "occurred_at": "2026-03-09T12:00:00+00:00"
+}
