@@ -1,0 +1,2 @@
+This file ensures the ee/ directory is tracked by git before the submodule is wired.
+Run `git submodule update --init` to populate with EE contents.
