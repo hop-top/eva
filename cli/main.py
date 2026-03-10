@@ -292,5 +292,69 @@ def serve(
     )
 
 
+drift_app = typer.Typer(help="Drift detection commands.")
+app.add_typer(drift_app, name="drift")
+
+
+@drift_app.command("report")
+def drift_report(
+    dataset: str = typer.Option(..., help="Dataset name to analyse."),
+    target: str = typer.Option(..., help="Target agent URL."),
+    window: int = typer.Option(10, help="Number of recent runs to compare."),
+    threshold: float = typer.Option(
+        0.1, help="Score delta that triggers DOWN/UP trend."
+    ),
+    db: str = typer.Option(None, help="Path to SQLite DB (overrides eva.yaml)."),
+) -> None:
+    """Show evaluator score trends across recent runs for a dataset+target pair."""
+    import asyncio
+    from rich.table import Table
+    from core.drift import compute_drift, DriftTrend
+    from core.storage import SqliteStorage
+
+    db_url = f"sqlite:///{db}" if db else "sqlite:///.eva/state.db"
+    storage = SqliteStorage(db_url=db_url)
+    runs = asyncio.run(storage.get_runs(dataset=dataset, target=target, limit=window))
+
+    if not runs:
+        console.print(
+            f"[yellow]No runs found for dataset=[bold]{dataset}[/bold] "
+            f"target=[bold]{target}[/bold][/yellow]"
+        )
+        raise typer.Exit(0)
+
+    report = compute_drift(runs, threshold=threshold)
+
+    table = Table(
+        title=f"Drift Report — {dataset} → {target} (last {len(runs)} runs)"
+    )
+    table.add_column("Evaluator", style="cyan", no_wrap=True)
+    table.add_column("Baseline", justify="right")
+    table.add_column("Current", justify="right")
+    table.add_column("Delta", justify="right")
+    table.add_column("Trend", justify="center")
+
+    trend_styles = {
+        DriftTrend.UP: "[green]↑ up[/green]",
+        DriftTrend.DOWN: "[red]↓ down[/red]",
+        DriftTrend.STABLE: "[dim]— stable[/dim]",
+    }
+
+    for entry in report.entries:
+        baseline_str = (
+            f"{entry.baseline_score:.4f}" if entry.baseline_score is not None else "—"
+        )
+        delta_str = f"{entry.delta:+.4f}" if entry.delta is not None else "—"
+        table.add_row(
+            entry.evaluator,
+            baseline_str,
+            f"{entry.current_score:.4f}",
+            delta_str,
+            trend_styles[entry.trend],
+        )
+
+    console.print(table)
+
+
 if __name__ == "__main__":
     app()

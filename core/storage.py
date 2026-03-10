@@ -66,6 +66,25 @@ class SqliteStorage(StorageAdapter):
             records = session.exec(select(RunRecord)).all()
             return [self._record_to_run(r) for r in records]
 
+    async def get_runs(
+        self, dataset: str, target: str, limit: int = 10
+    ) -> list[Run]:
+        """Return the most recent `limit` runs for a (dataset, target) pair.
+
+        Results are returned oldest-first so drift detection sees natural order.
+        """
+        with Session(self.engine) as session:
+            stmt = (
+                select(RunRecord)
+                .where(RunRecord.dataset == dataset)
+                .where(RunRecord.target == target)
+                .order_by(RunRecord.started_at.desc())  # type: ignore[attr-defined]
+                .limit(limit)
+            )
+            records = session.exec(stmt).all()
+        # Reverse so caller gets oldest-first
+        return [self._record_to_run(r) for r in reversed(records)]
+
     def _record_to_run(self, record: RunRecord) -> Run:
         results = [Result.model_validate(r) for r in json.loads(record.results_json)]
         return Run(
