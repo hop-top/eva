@@ -1,0 +1,29 @@
+{
+  "name": "file-tools",
+  "tools": [
+    {
+      "name": "read_file",
+      "description": "Read contents of a file from disk",
+      "inputSchema": {
+        "type": "object",
+        "required": ["path"],
+        "properties": {
+          "path": {"type": "string"},
+          "encoding": {"type": "string", "default": "utf-8"}
+        }
+      }
+    },
+    {
+      "name": "write_file",
+      "description": "Write content to a file",
+      "inputSchema": {
+        "type": "object",
+        "required": ["path", "content"],
+        "properties": {
+          "path": {"type": "string"},
+          "content": {"type": "string"}
+        }
+      }
+    }
+  ]
+}
