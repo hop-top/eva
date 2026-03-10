@@ -6,7 +6,7 @@ default:
 
 # Run full test suite (excluding e2e)
 test:
-    uv run pytest tests/ -v --ignore=tests/e2e
+    uv run --extra dev --extra server pytest tests/ -v --ignore=tests/e2e
 
 # Run e2e tests
 test-e2e:
@@ -25,7 +25,7 @@ build:
 
 # Check built artifacts
 check-dist:
-    uv run twine check dist/*
+    uv run --with twine twine check dist/*
 
 # Full release dry-run (build + check)
 release-dry-run: build check-dist
