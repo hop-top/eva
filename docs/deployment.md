@@ -116,3 +116,18 @@ services:
 - Log level: set `LOG_LEVEL=info` (or `warning` in prod) via shell env.
 - Contracts validated in CI: `eva contract validate` in pipeline.
 - Rate limiting: EE feature — see EE docs.
+
+---
+
+## Package Index
+
+Alpha packages distributed via private PyPI proxy.
+Source: https://github.com/hop-top/eva-pkg
+
+Partner install:
+
+```sh
+pip install eva \
+  --index-url https://<token>@eva-pkg.ideacrafters-llc.workers.dev/simple/ \
+  --extra-index-url https://pypi.org/simple/
+```
