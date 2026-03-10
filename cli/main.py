@@ -1,7 +1,13 @@
 # cli/main.py
+from importlib.metadata import version as _pkg_version, PackageNotFoundError
 from pathlib import Path
 import typer
 from rich.console import Console
+
+try:
+    _VERSION = _pkg_version("eva")
+except PackageNotFoundError:
+    _VERSION = "0.0.0"
 
 app = typer.Typer()
 console = Console()
@@ -27,7 +33,7 @@ EVA_JUDGE_MODEL=openai/gpt-4o-mini
 @app.command()
 def version():
     """Show version."""
-    console.print("0.1.0")
+    console.print(_VERSION)
 
 
 @app.command()
