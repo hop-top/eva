@@ -69,7 +69,8 @@ testpaths = ["tests"]
 addopts = ["--strict-markers", "-v"]
 markers = [
     "asyncio: async tests",
-    "integration: integration tests requiring external services",
+    "integration: requires external services — run with --integration flag",
     "slow: slow-running tests",
-    "e2e: end-to-end CLI tests",
+    "e2e: end-to-end CLI tests via subprocess",
+    "llm: tests that would make real LLM calls if not mocked",
 ]
