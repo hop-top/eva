@@ -41,6 +41,8 @@ def run_eva(*args):
 
 
 def test_eva_run_all_pass(tmp_path):
+    # US-002: As Alex, I want to run a dataset of test cases against an LLM endpoint with
+    # `eva run` so that I can verify my prompt changes don't regress.
     server = start_fake_agent(18999)
     try:
         result = run_eva(
@@ -55,6 +57,8 @@ def test_eva_run_all_pass(tmp_path):
 
 
 def test_eva_run_exit_code_zero_on_pass(tmp_path):
+    # US-003: As Alex, I want `eva run` to exit non-zero when any eval fails so that CI blocks
+    # the merge automatically. (Inverse: exit 0 when all pass.)
     server = start_fake_agent(18998)
     try:
         result = run_eva(
@@ -68,6 +72,8 @@ def test_eva_run_exit_code_zero_on_pass(tmp_path):
 
 
 def test_eva_run_jsonl_dataset(tmp_path):
+    # US-002: As Alex, I want to run a dataset of test cases against an LLM endpoint with
+    # `eva run` so that I can verify my prompt changes don't regress.
     """JSONL dataset loaded via --dataset; --target required and validated."""
     server = start_fake_agent(18997)
     try:
@@ -84,6 +90,8 @@ def test_eva_run_jsonl_dataset(tmp_path):
 
 
 def test_eva_run_target_url_validation():
+    # US-003: As Alex, I want `eva run` to exit non-zero when any eval fails so that CI blocks
+    # the merge automatically. (Invalid target URL triggers early exit-1.)
     """--target must be http:// or https://; else exit 1 before any network call."""
     result = run_eva(
         "run",
@@ -95,6 +103,8 @@ def test_eva_run_target_url_validation():
 
 
 def test_eva_run_no_tui_flag():
+    # US-002: As Alex, I want to run a dataset of test cases against an LLM endpoint with
+    # `eva run` so that I can verify my prompt changes don't regress.
     """--no-tui flag produces plain-text output (no rich progress bars)."""
     server = start_fake_agent(18996)
     try:

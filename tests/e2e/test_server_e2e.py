@@ -18,6 +18,8 @@ async def respond(body: dict) -> dict:
 
 @pytest.mark.asyncio
 async def test_proxy_pass_through_e2e():
+    # US-010: As Sam, I want per-request evaluator configuration on the `/v1/proxy` endpoint
+    # so that each integration can enforce its own quality contract at runtime.
     """Eva proxy -> echo agent -> contains evaluator passes -> 200 pass."""
     from server.app import create_app
     from server.contracts.registry import ContractRegistry
@@ -61,6 +63,8 @@ async def test_proxy_pass_through_e2e():
 
 @pytest.mark.asyncio
 async def test_proxy_retry_with_hint_e2e():
+    # US-008: As Sam, I want the proxy to retry failed requests with injected hints so that
+    # transient LLM quality failures are recovered without client involvement.
     """
     Eva proxy retries when evaluator fails, injects hint as _eva_hint.
     Echo agent returns _eva_hint value in response body.

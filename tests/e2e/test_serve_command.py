@@ -8,6 +8,10 @@ import pytest
 
 @pytest.mark.e2e
 def test_eva_serve_starts_and_responds():
+    # US-006: As Sam, I want to start an Eva gateway with `eva serve` so that all LLM traffic
+    # passes through a validated proxy layer.
+    # US-007: As Sam, I want Eva to expose a `/health` endpoint so that my load-balancer can
+    # detect outages and route around them.
     """Start eva serve as subprocess, poll /health, then terminate."""
     proc = subprocess.Popen(
         [sys.executable, "-m", "cli.main", "serve", "--host", "127.0.0.1", "--port", "18765"],

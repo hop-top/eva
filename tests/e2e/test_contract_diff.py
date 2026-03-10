@@ -15,6 +15,10 @@ def run_eva(*args):
 
 
 def test_no_regression_exits_zero():
+    # US-005: As Alex, I want to diff two contract versions with `eva contract diff` so that I
+    # can see breaking changes introduced by a prompt update.
+    # US-014: As Jordan, I want contract YAML files to be version-controlled and diffable so
+    # that every change to an approved output contract is trackable.
     result = run_eva(
         "contract", "diff",
         str(CONTRACTS / "v1.yaml"),
@@ -24,6 +28,10 @@ def test_no_regression_exits_zero():
 
 
 def test_regression_exits_one():
+    # US-005: As Alex, I want to diff two contract versions with `eva contract diff` so that I
+    # can see breaking changes introduced by a prompt update.
+    # US-014: As Jordan, I want contract YAML files to be version-controlled and diffable so
+    # that every change to an approved output contract is trackable.
     result = run_eva(
         "contract", "diff",
         str(CONTRACTS / "v1.yaml"),
@@ -35,6 +43,8 @@ def test_regression_exits_one():
 
 
 def test_identical_contracts_exit_zero():
+    # US-005: As Alex, I want to diff two contract versions with `eva contract diff` so that I
+    # can see breaking changes introduced by a prompt update.
     result = run_eva(
         "contract", "diff",
         str(CONTRACTS / "v1.yaml"),
@@ -45,6 +55,8 @@ def test_identical_contracts_exit_zero():
 
 
 def test_missing_file_exits_one():
+    # US-005: As Alex, I want to diff two contract versions with `eva contract diff` so that I
+    # can see breaking changes introduced by a prompt update.
     result = run_eva(
         "contract", "diff",
         str(CONTRACTS / "v1.yaml"),
