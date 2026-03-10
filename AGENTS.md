@@ -17,9 +17,32 @@ Three deliverables:
 
 ---
 
+## Repos
+
+All repos share the same parent directory (`../` from this repo):
+
+| Repo | Path | Purpose |
+|---|---|---|
+| `eva` | `.` | OSS core — this repo |
+| `eva-ee` | `./ee` | Enterprise Edition — git submodule at `ee/` |
+| `eva-pkg` | `../eva-pkg` | Cloudflare Worker — private PyPI + package distribution |
+
+`eva-pkg` is a Node.js/TypeScript Cloudflare Worker (Hono). Not a Python package.
+`ee` is a git submodule — commit changes there first, then update the parent ref.
+
+---
+
+## Cloud Service
+
+Hosted offering: `eva.hop.top` (subdomain of `hop.top`)
+Business model via `eva-ee`: licensing + hosting (multi-tenancy, shared/private instances).
+Version is always read from package metadata — never hardcoded. See `server/app.py` for the pattern.
+
+---
+
 ## Current State
 
-Phase 1 planned. Phases 2–4 planned. No code yet.
+Phases 1–5 complete. Next: invite system (`docs/plans/2026-03-10-eva-invite.md`).
 All tasks tracked in TLC: `tlc task list --tag phase1` etc.
 
 Plans: `docs/plans/` — one file per phase.
