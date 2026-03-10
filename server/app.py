@@ -19,7 +19,7 @@ def create_app(
             classes to mount on the app. EE and plugins use this hook —
             CE core is not modified.
     """
-    _app = FastAPI(title="Eva Gateway", version="1.0.0")
+    _app = FastAPI(title="Eva — Enforcement & Validation for Agents", version="1.0.0")
     if registry is not None:
         set_registry(registry)
     _app.include_router(gateway_router)

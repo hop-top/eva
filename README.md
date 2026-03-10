@@ -4,14 +4,14 @@
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)
 ![Status](https://img.shields.io/badge/status-alpha-orange.svg)
 
-> Behavioral contract enforcement for AI agents.
+> Enforcement & Validation for Agents.
 
 ## What is Eva?
 
-Eva enforces behavioral contracts on AI agent responses — declarative YAML specs that define
-what agents must (and must not) do. Violations are caught before they reach users. Works as a
-CLI tool for offline evaluation and as a production gateway proxy that enforces contracts on
-live traffic.
+Eva enforces and validates behavioral contracts on AI agent responses — declarative YAML specs
+that define what agents must (and must not) do. Violations are caught before they reach users.
+Works as a CLI tool for offline evaluation and as a production gateway proxy that enforces
+contracts on live traffic.
 
 ## Install
 
