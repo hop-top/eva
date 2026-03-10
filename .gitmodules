@@ -1,0 +1,4 @@
+# Uncomment after hop-top/eva-ee is initialized:
+# [submodule "ee"]
+#     path = ee
+#     url = git@github.com:hop-top/eva-ee.git
