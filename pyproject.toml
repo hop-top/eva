@@ -4,8 +4,23 @@ build-backend = "hatchling.build"
 
 [project]
 name = "eva"
-version = "0.1.0"
+version = "0.1.0a1"
+description = "Eva — behavioral contract enforcement for AI agents"
+readme = "README.md"
 requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+authors = [{name = "hop-top", email = "hello@hop-top.com"}]
+keywords = ["ai", "agents", "contracts", "evaluation", "gateway", "llm"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 # Version strategy: >=x.y,<x+1 for stable deps; ==x.y.z for prototype deps (agntcy-acp)
 # See docs/research/dependency-trust.md for rationale
 dependencies = [
@@ -20,6 +35,12 @@ dependencies = [
     "redis>=5",
     "litellm>=1.82.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/hop-top/eva"
+Repository = "https://github.com/hop-top/eva"
+Documentation = "https://github.com/hop-top/eva/tree/main/docs"
+"Bug Tracker" = "https://github.com/hop-top/eva/issues"
 
 [project.scripts]
 eva = "cli.main:app"
