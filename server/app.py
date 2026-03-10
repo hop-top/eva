@@ -3,8 +3,14 @@ from __future__ import annotations
 from typing import Callable, Sequence
 
 from fastapi import FastAPI
+from importlib.metadata import version, PackageNotFoundError
 from server.contracts.registry import ContractRegistry
 from server.gateway.routes import router as gateway_router, set_registry
+
+try:
+    _VERSION = version("eva")
+except PackageNotFoundError:
+    _VERSION = "0.0.0"
 
 
 def create_app(
@@ -19,7 +25,7 @@ def create_app(
             classes to mount on the app. EE and plugins use this hook —
             CE core is not modified.
     """
-    _app = FastAPI(title="Eva — Enforcement & Validation for Agents", version="1.0.0")
+    _app = FastAPI(title="Eva — Enforcement & Validation for Agents", version=_VERSION)
     if registry is not None:
         set_registry(registry)
     _app.include_router(gateway_router)
