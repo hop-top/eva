@@ -1,0 +1,26 @@
+name: secure_agent
+provider: billing-agent
+consumer: compliance-service
+request_schema:
+  type: object
+  required: [order_id, amount]
+  properties:
+    order_id:
+      type: string
+    amount:
+      type: number
+evaluators:
+  - name: json_schema_valid
+    mode: binary
+  - name: no_discount_violation
+    mode: binary
+  - name: response_quality
+    mode: threshold
+    min_score: 0.7
+retry_policy:
+  max_retries: 2
+  hint: "Ensure response is valid JSON and discount is <= 20%"
+metadata:
+  auth_required: true
+  rate_limit_rpm: 60
+  webhook_url: "https://hooks.example.com/eva"
