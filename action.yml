@@ -1,0 +1,100 @@
+name: 'Eva Contract Evaluation'
+description: 'Run Eva behavioral contract evaluations in CI/CD'
+author: 'hop-top'
+
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  contracts-dir:
+    description: 'Path to contracts directory'
+    default: './evals'
+  dataset:
+    description: 'Path to dataset file or glob'
+    default: './evals/*.jsonl'
+  eva-version:
+    description: 'Eva version to install (use "latest" for newest)'
+    default: 'latest'
+  python-version:
+    description: 'Python version'
+    default: '3.11'
+  fail-on-violation:
+    description: 'Fail the action if violations found'
+    default: 'true'
+  no-tui:
+    description: 'Disable rich TUI output for cleaner CI logs'
+    default: 'true'
+  extra-args:
+    description: 'Additional arguments passed to eva run'
+    default: ''
+
+outputs:
+  violations:
+    description: 'Number of violations found'
+    value: ${{ steps.eva-run.outputs.violations }}
+  result:
+    description: 'pass or fail'
+    value: ${{ steps.eva-run.outputs.result }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+
+    - name: Install Eva
+      shell: bash
+      run: |
+        if [ "${{ inputs.eva-version }}" = "latest" ]; then
+          uv pip install --system "eva[server]"
+        else
+          uv pip install --system "eva[server]==${{ inputs.eva-version }}"
+        fi
+
+    - name: Validate contracts
+      shell: bash
+      run: |
+        for f in ${{ inputs.contracts-dir }}/*.yaml ${{ inputs.contracts-dir }}/*.yml; do
+          [ -f "$f" ] && eva contract validate "$f" || true
+        done
+
+    - name: Run Eva evaluation
+      id: eva-run
+      shell: bash
+      run: |
+        EXTRA_FLAGS=""
+        if [ "${{ inputs.no-tui }}" = "true" ]; then
+          EXTRA_FLAGS="--no-tui"
+        fi
+
+        set +e
+        eva run \
+          --contracts ${{ inputs.contracts-dir }} \
+          $EXTRA_FLAGS \
+          ${{ inputs.extra-args }} \
+          ${{ inputs.dataset }}
+        EXIT_CODE=$?
+        set -e
+
+        if [ $EXIT_CODE -eq 0 ]; then
+          echo "violations=0" >> $GITHUB_OUTPUT
+          echo "result=pass" >> $GITHUB_OUTPUT
+        else
+          echo "violations=1" >> $GITHUB_OUTPUT
+          echo "result=fail" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Check result
+      shell: bash
+      run: |
+        if [ "${{ inputs.fail-on-violation }}" = "true" ] && \
+           [ "${{ steps.eva-run.outputs.result }}" = "fail" ]; then
+          echo "Eva: contract violations found — failing build"
+          exit 1
+        fi
