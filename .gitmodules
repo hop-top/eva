@@ -2,3 +2,6 @@
 # [submodule "ee"]
 #     path = ee
 #     url = git@github.com:hop-top/eva-ee.git
+[submodule "ee"]
+	path = ee
+	url = git@github.com:hop-top/eva-ee.git
