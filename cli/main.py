@@ -257,5 +257,40 @@ def _run_with_tui(runner, ds):
     return eva_run
 
 
+@app.command()
+def serve(
+    host: str = typer.Option("0.0.0.0", help="Bind host"),
+    port: int = typer.Option(8080, help="Bind port"),
+    contracts_dir: Path = typer.Option(
+        Path("contracts"), help="Directory of contract YAML files to load"
+    ),
+    reload: bool = typer.Option(False, help="Enable hot-reload (dev mode)"),
+    workers: int = typer.Option(1, help="Number of uvicorn workers"),
+) -> None:
+    """Start the Eva gateway server."""
+    import uvicorn
+    from server.app import create_app
+    from server.contracts.registry import ContractRegistry
+
+    registry = ContractRegistry()
+    if contracts_dir.exists():
+        registry.load_dir(contracts_dir)
+        typer.echo(f"Loaded {len(registry.all())} contract(s) from {contracts_dir}")
+    else:
+        typer.echo(
+            f"Warning: contracts directory '{contracts_dir}' not found — starting with empty registry"
+        )
+
+    _app = create_app(registry=registry)
+
+    uvicorn.run(
+        _app,
+        host=host,
+        port=port,
+        workers=workers if not reload else 1,
+        reload=reload,
+    )
+
+
 if __name__ == "__main__":
     app()
