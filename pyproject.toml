@@ -61,7 +61,7 @@ all = ["eva[dev,server,redis,llm]"]
 # OTEL exporter plugins register here
 
 [tool.hatch.build.targets.wheel]
-packages = ["core", "cli", "server"]
+packages = ["core", "cli", "server", "ee"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -73,4 +73,9 @@ markers = [
     "slow: slow-running tests",
     "e2e: end-to-end CLI tests via subprocess",
     "llm: tests that would make real LLM calls if not mocked",
+]
+
+[dependency-groups]
+dev = [
+    "respx>=0.22.0",
 ]
