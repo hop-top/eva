@@ -6,6 +6,9 @@ All user stories grouped by persona. IDs are stable; append new stories at end o
 
 ## Alex — AI Engineer
 
+Associated Eva persona: [Alex — AI Engineer](./personas.md)
+Shared base persona: [Solo Developer](../../../../.docs/personas/individuals/solo-developer.md)
+
 | ID     | Story |
 |--------|-------|
 | US-001 | As Alex, I want to scaffold a new Eva project with `eva init` so that I can start writing |
@@ -23,6 +26,9 @@ All user stories grouped by persona. IDs are stable; append new stories at end o
 
 ## Sam — Platform Engineer
 
+Associated Eva persona: [Sam — Platform Engineer](./personas.md)
+Shared base persona: [Platform Engineer](../../../../.docs/personas/individuals/platform-engineer.md)
+
 | ID     | Story |
 |--------|-------|
 | US-006 | As Sam, I want to start an Eva gateway with `eva serve` so that all LLM traffic passes |
@@ -35,10 +41,19 @@ All user stories grouped by persona. IDs are stable; append new stories at end o
 |        | callers can invoke LLM endpoints through Eva. |
 | US-010 | As Sam, I want per-request evaluator configuration on the `/v1/proxy` endpoint so that |
 |        | each integration can enforce its own quality contract at runtime. |
+| [US-021](./stories/US-021-gateway-artifact-storage.md) | As Sam, I want Eva to persist raw request/response artifacts for gateway traffic so that |
+|        | operators can reconstruct exactly what happened during an incident. |
+| [US-022](./stories/US-022-tool-call-ingestion.md) | As Sam, I want Eva to ingest tool-call events from instrumented agents so that process |
+|        | failures can be debugged instead of inferred from final output alone. |
+| [US-023](./stories/US-023-sampling-redaction-retention.md) | As Sam, I want configurable sampling, redaction, and retention on persisted artifacts so |
+|        | that production observability does not create an uncontrolled data liability. |
 
 ---
 
 ## Jordan — Compliance Officer
+
+Associated Eva persona: [Jordan — Compliance Officer](./personas.md)
+Shared base persona: [Platform Engineer](../../../../.docs/personas/individuals/platform-engineer.md)
 
 | ID     | Story |
 |--------|-------|
@@ -52,10 +67,20 @@ All user stories grouped by persona. IDs are stable; append new stories at end o
 |        | change to an approved output contract is trackable. |
 | US-015 | As Jordan, I want `eva drift report` to exit non-zero when no baseline runs exist so that |
 |        | missing-data gaps are surfaced rather than silently ignored. |
+| [US-024](./stories/US-024-historical-invocation-inspection.md) | As Jordan, I want to inspect the exact request, response, contract version, and trace id |
+|        | for a historical invocation so that audit reviews do not rely on screenshots or operator |
+|        | memory. |
+| [US-025](./stories/US-025-model-quality-latency-cost-compare.md) | As Jordan, I want to compare quality, latency, and estimated cost across model versions so |
+|        | that a cheaper or newer model cannot be approved without evidence. |
+| [US-026](./stories/US-026-failure-slicing.md) | As Jordan, I want to slice failures by evaluator, contract, model, and metadata tags so |
+|        | that compliance issues can be isolated to the affected cohort quickly. |
 
 ---
 
 ## Taylor — OSS Contributor / Plugin Author
+
+Associated Eva persona: [Taylor — OSS Contributor / Plugin Author](./personas.md)
+Shared base persona: [OSS Go Developer](../../../../.docs/personas/contributors/oss-go-developer.md)
 
 | ID     | Story |
 |--------|-------|
@@ -69,6 +94,24 @@ All user stories grouped by persona. IDs are stable; append new stories at end o
 |        | my evaluator can make fine-grained decisions based on test metadata. |
 | US-020 | As Taylor, I want plugin errors to be isolated and reported as a failed score rather than |
 |        | crashing the runner so that one bad plugin doesn't abort the whole suite. |
+
+---
+
+## Riley — Evaluation Ops Lead
+
+Associated Eva persona: [Riley — Evaluation Ops Lead](./personas.md)
+Shared base persona: [Platform Engineer](../../../../.docs/personas/individuals/platform-engineer.md)
+
+| ID     | Story |
+|--------|-------|
+| [US-027](./stories/US-027-review-queue.md) | As Riley, I want Eva to queue failed or sampled invocations for review so that humans can |
+|        | inspect the highest-risk outputs first. |
+| [US-028](./stories/US-028-annotations-and-corrections.md) | As Riley, I want to attach annotations and corrected outputs to an invocation so that Eva |
+|        | becomes the system of record for both automated and human evals. |
+| [US-029](./stories/US-029-evaluator-vs-human.md) | As Riley, I want to compare automated evaluator scores against human labels so that weak or |
+|        | misaligned evaluators can be identified and improved. |
+| [US-030](./stories/US-030-root-cause-triage.md) | As Riley, I want to inspect tool traces, retrieved context, and evaluator results in one |
+|        | place so that root-cause analysis is faster than reading scattered logs. |
 
 ---
 
@@ -96,3 +139,13 @@ All user stories grouped by persona. IDs are stable; append new stories at end o
 | US-018 | Taylor  | `eva_plugins.py` local     | test_plugin_e2e.py            |
 | US-019 | Taylor  | `run_eval` hook context    | test_plugin_e2e.py            |
 | US-020 | Taylor  | plugin error isolation     | test_plugin_e2e.py            |
+| US-021 | Sam     | gateway artifact storage   | test_gateway_persistence.py   |
+| US-022 | Sam     | tool-call ingestion        | test_gateway_tool_events.py   |
+| US-023 | Sam     | sampling / redaction       | test_gateway_sampling.py      |
+| US-024 | Jordan  | `eva invocations show`     | (future; plan)                |
+| US-025 | Jordan  | `eva compare`              | test_compare_command.py       |
+| US-026 | Jordan  | `eva failures list`        | (future; plan)                |
+| US-027 | Riley   | `eva review queue`         | (future; plan)                |
+| US-028 | Riley   | `eva annotate add/list`    | test_annotation_commands.py   |
+| US-029 | Riley   | evaluator vs human review  | (future; plan)                |
+| US-030 | Riley   | invocation triage workflow | (future; plan)                |
