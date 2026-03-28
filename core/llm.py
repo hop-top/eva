@@ -1,6 +1,18 @@
 # core/llm.py
 from typing import Any
 
+from pydantic import BaseModel
+
+
+class LLMCompletion(BaseModel):
+    """Structured result from LiteLLMAdapter.complete()."""
+
+    content: str
+    provider: str | None
+    model: str
+    usage: dict
+    raw_response: dict | None
+
 
 class LiteLLMAdapter:
     """Async LLM adapter backed by LiteLLM.
@@ -12,7 +24,9 @@ class LiteLLMAdapter:
         self.model = model
         self.kwargs = kwargs
 
-    async def complete(self, messages: list[dict[str, str]], **kwargs: Any) -> str:
+    async def complete(
+        self, messages: list[dict[str, str]], **kwargs: Any
+    ) -> LLMCompletion:
         import litellm  # deferred — only required when adapter is used
 
         response = await litellm.acompletion(
@@ -20,4 +34,21 @@ class LiteLLMAdapter:
             messages=messages,
             **{**self.kwargs, **kwargs},
         )
-        return response.choices[0].message.content
+        content = response.choices[0].message.content
+
+        usage_obj = getattr(response, "usage", None)
+        usage: dict = dict(usage_obj) if usage_obj is not None else {}
+
+        raw_response: dict | None = None
+        try:
+            raw_response = response.model_dump()
+        except Exception:
+            pass
+
+        return LLMCompletion(
+            content=content,
+            provider=getattr(response, "_hidden_params", {}).get("custom_llm_provider"),
+            model=getattr(response, "model", self.model),
+            usage=usage,
+            raw_response=raw_response,
+        )

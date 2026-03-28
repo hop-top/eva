@@ -1,6 +1,6 @@
 # tests/unit/test_llm_judge.py
 import pytest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from core.evaluators.llm_judge import (
     parse_score,
     RelevanceEvaluator,
@@ -55,7 +55,9 @@ def test_parse_score_fallback_on_empty():
 
 def make_mock_llm(reply: str) -> AsyncMock:
     mock = AsyncMock()
-    mock.complete = AsyncMock(return_value=reply)
+    completion = MagicMock()
+    completion.content = reply
+    mock.complete = AsyncMock(return_value=completion)
     return mock
 
 

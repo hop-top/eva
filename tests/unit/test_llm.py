@@ -4,17 +4,27 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from core.llm import LiteLLMAdapter
 
 
+def _make_fake_response(content: str) -> MagicMock:
+    """Build a MagicMock that satisfies LLMCompletion field extraction."""
+    fake = MagicMock()
+    fake.choices[0].message.content = content
+    fake.model = "gpt-4o-mini"
+    fake._hidden_params = {"custom_llm_provider": "openai"}
+    fake.usage = MagicMock(prompt_tokens=10, completion_tokens=5, total_tokens=15)
+    fake.model_dump = MagicMock(return_value={"id": "test"})
+    return fake
+
+
 @pytest.mark.asyncio
 async def test_complete_returns_content():
-    fake_response = MagicMock()
-    fake_response.choices[0].message.content = "Hello, world!"
+    fake_response = _make_fake_response("Hello, world!")
 
     with patch("litellm.acompletion", new_callable=AsyncMock) as mock_acompletion:
         mock_acompletion.return_value = fake_response
         adapter = LiteLLMAdapter(model="gpt-4o-mini")
         result = await adapter.complete([{"role": "user", "content": "Hi"}])
 
-    assert result == "Hello, world!"
+    assert result.content == "Hello, world!"
     mock_acompletion.assert_awaited_once()
     call_kwargs = mock_acompletion.call_args
     assert call_kwargs.kwargs["model"] == "gpt-4o-mini"
@@ -23,8 +33,7 @@ async def test_complete_returns_content():
 
 @pytest.mark.asyncio
 async def test_complete_passes_extra_kwargs():
-    fake_response = MagicMock()
-    fake_response.choices[0].message.content = "result"
+    fake_response = _make_fake_response("result")
 
     with patch("litellm.acompletion", new_callable=AsyncMock) as mock_acompletion:
         mock_acompletion.return_value = fake_response
@@ -39,8 +48,7 @@ async def test_complete_passes_extra_kwargs():
 @pytest.mark.asyncio
 async def test_complete_call_kwargs_override_constructor():
     """Per-call kwargs override constructor kwargs."""
-    fake_response = MagicMock()
-    fake_response.choices[0].message.content = "x"
+    fake_response = _make_fake_response("x")
 
     with patch("litellm.acompletion", new_callable=AsyncMock) as mock_acompletion:
         mock_acompletion.return_value = fake_response

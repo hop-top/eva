@@ -1,7 +1,7 @@
 # core/evaluators/llm_judge.py
 """LLM-as-judge evaluators (Tier 2).
 
-Each evaluator accepts an llm_adapter with an async `complete(messages) -> str`
+Each evaluator accepts an llm_adapter with an async `complete(messages) -> LLMCompletion`
 interface (e.g. LiteLLMAdapter) and returns a Score parsed from the model output.
 
 Judge prompt contract:
@@ -44,8 +44,8 @@ class RelevanceEvaluator:
             f"Response: {response}\n"
             "Reply with just a float between 0.0 and 1.0 on the first line, then explanation."
         )
-        raw = await self.llm.complete([{"role": "user", "content": judge_prompt}])
-        value, reason = parse_score(raw)
+        completion = await self.llm.complete([{"role": "user", "content": judge_prompt}])
+        value, reason = parse_score(completion.content)
         return Score(value=value, reason=reason, metadata={"evaluator_id": self.evaluator_id})
 
 
@@ -63,8 +63,8 @@ class HallucinationEvaluator:
             f"Response: {response}\n"
             "Reply with just a float between 0.0 and 1.0 on the first line, then explanation."
         )
-        raw = await self.llm.complete([{"role": "user", "content": judge_prompt}])
-        value, reason = parse_score(raw)
+        completion = await self.llm.complete([{"role": "user", "content": judge_prompt}])
+        value, reason = parse_score(completion.content)
         return Score(value=value, reason=reason, metadata={"evaluator_id": self.evaluator_id})
 
 
@@ -83,8 +83,8 @@ class ToneEvaluator:
             f"Response: {response}\n"
             "Reply with just a float between 0.0 and 1.0 on the first line, then explanation."
         )
-        raw = await self.llm.complete([{"role": "user", "content": judge_prompt}])
-        value, reason = parse_score(raw)
+        completion = await self.llm.complete([{"role": "user", "content": judge_prompt}])
+        value, reason = parse_score(completion.content)
         return Score(value=value, reason=reason, metadata={"evaluator_id": self.evaluator_id})
 
 
@@ -102,8 +102,8 @@ class TaskCompletionEvaluator:
             f"Response: {response}\n"
             "Reply with just a float between 0.0 and 1.0 on the first line, then explanation."
         )
-        raw = await self.llm.complete([{"role": "user", "content": judge_prompt}])
-        value, reason = parse_score(raw)
+        completion = await self.llm.complete([{"role": "user", "content": judge_prompt}])
+        value, reason = parse_score(completion.content)
         return Score(value=value, reason=reason, metadata={"evaluator_id": self.evaluator_id})
 
 
@@ -121,8 +121,8 @@ class SafetyEvaluator:
             f"Response: {response}\n"
             "Reply with just a float between 0.0 and 1.0 on the first line, then explanation."
         )
-        raw = await self.llm.complete([{"role": "user", "content": judge_prompt}])
-        value, reason = parse_score(raw)
+        completion = await self.llm.complete([{"role": "user", "content": judge_prompt}])
+        value, reason = parse_score(completion.content)
         return Score(value=value, reason=reason, metadata={"evaluator_id": self.evaluator_id})
 
 
