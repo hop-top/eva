@@ -516,3 +516,204 @@ async def test_geval_custom_criteria_fails():
     score = await ev.evaluate(prompt="Show me Python", response="Python is a language.")
     assert score.value == pytest.approx(0.1)
     assert score.metadata["evaluator_id"] == "has_code"
+
+
+# ---------------------------------------------------------------------------
+# T-0169: EvaTestCase retrieval_context parsing
+# ---------------------------------------------------------------------------
+
+def test_eva_test_case_retrieval_context_parses():
+    import yaml
+    from core.dataset import EvaTestCase
+
+    raw = yaml.safe_load("""
+id: rag-test-1
+input: what is the capital of France?
+retrieval_context: "France is a country in Western Europe. Its capital city is Paris."
+expected_output: Paris
+""")
+    tc = EvaTestCase.model_validate(raw)
+    assert tc.retrieval_context == "France is a country in Western Europe. Its capital city is Paris."
+    assert tc.expected_output == "Paris"
+
+
+# ---------------------------------------------------------------------------
+# T-0170: FaithfulnessEvaluator
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_faithfulness_with_retrieval_context():
+    llm = make_mock_llm("0.95\nAll claims grounded in context.")
+    ev = FaithfulnessEvaluator(llm_adapter=llm)
+    score = await ev.evaluate(
+        prompt="What is Paris?",
+        response="Paris is the capital of France.",
+        retrieval_context="France is a country. Its capital is Paris.",
+    )
+    assert score.value == pytest.approx(0.95)
+    assert score.metadata["evaluator_id"] == "faithfulness"
+    call_args = llm.complete.call_args
+    assert "retrieval context" in call_args[0][0][0]["content"].lower()
+
+
+@pytest.mark.asyncio
+async def test_faithfulness_without_retrieval_context():
+    llm = make_mock_llm("0.6\nPartially grounded.")
+    ev = FaithfulnessEvaluator(llm_adapter=llm)
+    score = await ev.evaluate(
+        prompt="What is Paris?",
+        response="Paris is in France.",
+    )
+    assert score.value == pytest.approx(0.6)
+    assert score.metadata["evaluator_id"] == "faithfulness"
+
+
+# ---------------------------------------------------------------------------
+# T-0171: ContextualRecallEvaluator
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_contextual_recall_with_context_kwarg():
+    llm = make_mock_llm("0.9\nContext fully covers expected output.")
+    ev = ContextualRecallEvaluator(llm_adapter=llm)
+    score = await ev.evaluate(
+        prompt="What is the capital of France?",
+        response="Paris",
+        retrieval_context="Paris is the capital of France.",
+        expected_output="Paris",
+    )
+    assert score.value == pytest.approx(0.9)
+    assert score.metadata["evaluator_id"] == "contextual_recall"
+
+
+@pytest.mark.asyncio
+async def test_contextual_recall_with_constructor_expected():
+    llm = make_mock_llm("0.4\nContext only partially covers needed info.")
+    ev = ContextualRecallEvaluator(llm_adapter=llm, expected_output="Paris is beautiful")
+    score = await ev.evaluate(
+        prompt="Describe Paris",
+        response="Paris is a city.",
+        retrieval_context="Paris is in France.",
+    )
+    assert score.value == pytest.approx(0.4)
+    call_args = llm.complete.call_args
+    assert "Paris is beautiful" in call_args[0][0][0]["content"]
+
+
+# ---------------------------------------------------------------------------
+# T-0172: ContextualPrecisionEvaluator
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_contextual_precision_high():
+    llm = make_mock_llm("0.95\nAll retrieved chunks highly relevant.")
+    ev = ContextualPrecisionEvaluator(llm_adapter=llm)
+    score = await ev.evaluate(
+        prompt="What is the capital of France?",
+        response="Paris",
+        retrieval_context="Paris is the capital of France.",
+    )
+    assert score.value == pytest.approx(0.95)
+    assert score.metadata["evaluator_id"] == "contextual_precision"
+
+
+@pytest.mark.asyncio
+async def test_contextual_precision_low():
+    llm = make_mock_llm("0.2\nMost retrieved content is off-topic.")
+    ev = ContextualPrecisionEvaluator(llm_adapter=llm)
+    score = await ev.evaluate(
+        prompt="What is the capital of France?",
+        response="Unknown",
+        retrieval_context="Germany won the World Cup. Italy has great food.",
+    )
+    assert score.value == pytest.approx(0.2)
+
+
+# ---------------------------------------------------------------------------
+# T-0163: ContextualRelevancyEvaluator
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_contextual_relevancy_high():
+    llm = make_mock_llm("0.9\nContext highly relevant to query.")
+    ev = ContextualRelevancyEvaluator(llm_adapter=llm)
+    score = await ev.evaluate(
+        prompt="What is Python?",
+        response="Python is a programming language.",
+        retrieval_context="Python is a high-level programming language known for readability.",
+    )
+    assert score.value == pytest.approx(0.9)
+    assert score.metadata["evaluator_id"] == "contextual_relevancy"
+
+
+@pytest.mark.asyncio
+async def test_contextual_relevancy_low():
+    llm = make_mock_llm("0.1\nContext unrelated to query.")
+    ev = ContextualRelevancyEvaluator(llm_adapter=llm)
+    score = await ev.evaluate(
+        prompt="What is Python?",
+        response="Irrelevant answer.",
+        retrieval_context="The history of ancient Rome.",
+    )
+    assert score.value == pytest.approx(0.1)
+
+
+# ---------------------------------------------------------------------------
+# T-0164: AnswerRelevancyEvaluator
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_answer_relevancy_direct():
+    llm = make_mock_llm("0.95\nDirectly and completely answers the query.")
+    ev = AnswerRelevancyEvaluator(llm_adapter=llm)
+    score = await ev.evaluate(
+        prompt="What is 2 + 2?",
+        response="2 + 2 equals 4.",
+    )
+    assert score.value == pytest.approx(0.95)
+    assert score.metadata["evaluator_id"] == "answer_relevancy"
+
+
+@pytest.mark.asyncio
+async def test_answer_relevancy_off_topic():
+    llm = make_mock_llm("0.05\nResponse does not answer the question.")
+    ev = AnswerRelevancyEvaluator(llm_adapter=llm)
+    score = await ev.evaluate(
+        prompt="What is 2 + 2?",
+        response="I like pizza.",
+    )
+    assert score.value == pytest.approx(0.05)
+
+
+# ---------------------------------------------------------------------------
+# T-0173: RAGASEvaluator
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_ragas_evaluator_averages_component_scores():
+    from unittest.mock import AsyncMock as _AM
+
+    async def make_mock_ev(ev_id, val):
+        class _Ev:
+            evaluator_id = ev_id
+
+            async def evaluate(self, prompt, response, **ctx):
+                return Score(
+                    value=val,
+                    reason=f"reason-{ev_id}",
+                    metadata={"evaluator_id": ev_id},
+                )
+        return _Ev()
+
+    ev1 = await make_mock_ev("faithfulness", 0.8)
+    ev2 = await make_mock_ev("contextual_relevancy", 0.6)
+    ev3 = await make_mock_ev("answer_relevancy", 1.0)
+
+    ragas = RAGASEvaluator(evaluators=[ev1, ev2, ev3])
+    score = await ragas.evaluate(prompt="q", response="r")
+
+    assert score.value == pytest.approx((0.8 + 0.6 + 1.0) / 3)
+    assert score.metadata["evaluator_id"] == "ragas"
+    assert score.metadata["component_scores"]["faithfulness"] == pytest.approx(0.8)
+    assert score.metadata["component_scores"]["contextual_relevancy"] == pytest.approx(0.6)
+    assert score.metadata["component_scores"]["answer_relevancy"] == pytest.approx(1.0)
