@@ -99,12 +99,19 @@ class Runner:
                     "run_id": run_id,
                     "test_id": test.id,
                     "event_sink": self.event_sink,
+                    "retrieval_context": test.retrieval_context,
+                    "expected_output": test.expected_output,
+                    "planned_steps": test.planned_steps,
                 }
                 self.pm.hook.before_eval(test_id=test.id, context=run_ctx)
                 response = await self.call_agent(test.input, dataset.target)
                 scores: list[Score] = self.pm.hook.run_eval(
                     response=response,
-                    context={"test": test.model_dump(), **run_ctx},
+                    context={
+                        "test": test.model_dump(),
+                        **run_ctx,
+                        "tool_events": run_ctx.get("tool_events", list(self.event_sink.events)),
+                    },
                 )
                 t1 = datetime.utcnow()
                 duration_ms = int((t1 - t0).total_seconds() * 1000)

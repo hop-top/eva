@@ -266,3 +266,45 @@ async def test_runner_accepts_custom_otel_adapter():
     runner = Runner(pm=pm, call_agent=fake_call, otel_adapter=FakeOtel())
     run = await runner.execute(DATASET)
     assert run.passed is True
+
+
+# ---------------------------------------------------------------------------
+# T-0168: tool_events passed into run_eval context
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_runner_passes_tool_events_to_evaluator_context():
+    """tool_events key must appear in context passed to run_eval."""
+    from core.plugins import make_manager
+    from core.events import EventSink
+
+    captured_contexts: list[dict] = []
+
+    class ContextCapturingPlugin(EvaPlugin):
+        @EvaSpec.hook_impl
+        def run_eval(self, response: str, context: dict) -> Score:
+            captured_contexts.append(context)
+            return Score(value=1.0)
+
+    pm = make_manager()
+    pm.register(ContextCapturingPlugin())
+
+    sink = EventSink()
+    sink.emit_tool_call("search", {"query": "test"}, result="some result")
+
+    async def fake_call(input: str, target: str) -> str:
+        return "ok"
+
+    dataset = Dataset(
+        name="tool_events_test",
+        target="http://fake",
+        evaluators=[{"name": "x", "mode": "binary"}],
+        tests=[EvaTestCase(id="t1", input="hello")],
+    )
+
+    runner = Runner(pm=pm, call_agent=fake_call, event_sink=sink)
+    await runner.execute(dataset)
+
+    assert len(captured_contexts) == 1
+    assert "tool_events" in captured_contexts[0]
+    assert isinstance(captured_contexts[0]["tool_events"], list)
