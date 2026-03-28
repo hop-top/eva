@@ -453,6 +453,59 @@ class SqliteStorage(StorageAdapter):
                 metadata_json=record.metadata_json,
             )
 
+    # ------------------------------------------------------------------ #
+    # Annotation methods (T-0141)                                          #
+    # ------------------------------------------------------------------ #
+
+    def save_annotation(self, annotation: Annotation) -> None:
+        """Persist an Annotation row (FK: invocation_id must already exist)."""
+        record = AnnotationRecord(
+            annotation_id=annotation.annotation_id,
+            invocation_id=annotation.invocation_id,
+            reviewer=annotation.reviewer,
+            label=annotation.label,
+            score=annotation.score,
+            notes=annotation.notes,
+            corrected_output_artifact_id=annotation.corrected_output_artifact_id,
+            created_at=annotation.created_at,
+            metadata_json=annotation.metadata_json,
+        )
+        with Session(self.engine) as session:
+            session.merge(record)
+            session.commit()
+
+    def list_annotations(self, invocation_id: str) -> list[Annotation]:
+        """Return all Annotation rows for a given invocation_id."""
+        with Session(self.engine) as session:
+            stmt = select(AnnotationRecord).where(
+                AnnotationRecord.invocation_id == invocation_id
+            )
+            records = session.exec(stmt).all()
+        return [
+            Annotation(
+                annotation_id=r.annotation_id,
+                invocation_id=r.invocation_id,
+                reviewer=r.reviewer,
+                label=r.label,
+                score=r.score,
+                notes=r.notes,
+                corrected_output_artifact_id=r.corrected_output_artifact_id,
+                created_at=r.created_at,
+                metadata_json=r.metadata_json,
+            )
+            for r in records
+        ]
+
+    def delete_annotation(self, annotation_id: str) -> bool:
+        """Delete an Annotation by primary key. Returns True if deleted, False if not found."""
+        with Session(self.engine) as session:
+            record = session.get(AnnotationRecord, annotation_id)
+            if record is None:
+                return False
+            session.delete(record)
+            session.commit()
+        return True
+
     def _record_to_run(self, record: RunRecord) -> Run:
         results = [Result.model_validate(r) for r in json.loads(record.results_json)]
         return Run(
