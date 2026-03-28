@@ -384,6 +384,7 @@ server = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "eva" },
     { name = "respx" },
 ]
 
@@ -391,7 +392,7 @@ dev = [
 requires-dist = [
     { name = "anyio", extras = ["trio"], marker = "extra == 'dev'", specifier = ">=4" },
     { name = "arq", marker = "extra == 'server'", specifier = ">=0.27,<1" },
-    { name = "eva", extras = ["dev", "server", "redis", "llm"], marker = "extra == 'all'" },
+    { name = "eva", extras = ["dev", "server", "redis", "llm"], marker = "extra == 'all'", editable = "." },
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.111" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
@@ -416,7 +417,10 @@ requires-dist = [
 provides-extras = ["dev", "server", "redis", "llm", "all"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "respx", specifier = ">=0.22.0" }]
+dev = [
+    { name = "eva", editable = "." },
+    { name = "respx", specifier = ">=0.22.0" },
+]
 
 [[package]]
 name = "fastapi"

@@ -26,6 +26,11 @@ from core.evaluators.llm_judge import (
     ContextualRelevancyEvaluator,
     AnswerRelevancyEvaluator,
     RAGASEvaluator,
+    TextToImageEvaluator,
+    ImageEditingEvaluator,
+    ImageCoherenceEvaluator,
+    ImageHelpfulnessEvaluator,
+    ImageReferenceEvaluator,
 )
 from core.models import Score
 

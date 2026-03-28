@@ -96,7 +96,11 @@ markers = [
     "llm: tests that would make real LLM calls if not mocked",
 ]
 
+[tool.uv.sources]
+eva = { workspace = true }
+
 [dependency-groups]
 dev = [
+    "eva",
     "respx>=0.22.0",
 ]

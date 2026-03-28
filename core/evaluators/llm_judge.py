@@ -532,6 +532,122 @@ class RAGASEvaluator:
         )
 
 
+class TextToImageEvaluator:
+    evaluator_id = "text_to_image"
+
+    def __init__(self, llm_adapter: Any):
+        self.llm = llm_adapter
+
+    async def evaluate(self, prompt: str, response: str, **context: Any) -> Score:
+        image_url = context.get("image_url")
+        if not image_url:
+            return Score(
+                value=0.5,
+                reason="No image provided",
+                metadata={"evaluator_id": self.evaluator_id},
+            )
+        judge_text = (
+            f"Rate how well this generated image matches the text prompt on a scale 0.0-1.0 "
+            f"(1.0 = perfect match). Prompt: {prompt}\nReply float then explanation."
+        )
+        completion = await self.llm.complete([build_vision_message(judge_text, image_url)])
+        value, reason = parse_score(completion.content)
+        return Score(value=value, reason=reason, metadata={"evaluator_id": self.evaluator_id})
+
+
+class ImageEditingEvaluator:
+    evaluator_id = "image_editing"
+
+    def __init__(self, llm_adapter: Any):
+        self.llm = llm_adapter
+
+    async def evaluate(self, prompt: str, response: str, **context: Any) -> Score:
+        image_url = context.get("image_url")
+        if not image_url:
+            return Score(
+                value=0.5,
+                reason="No image provided",
+                metadata={"evaluator_id": self.evaluator_id},
+            )
+        judge_text = (
+            f"Rate how well this image has been edited according to the instructions on a "
+            f"scale 0.0-1.0. Instructions: {prompt}\nReply float then explanation."
+        )
+        completion = await self.llm.complete([build_vision_message(judge_text, image_url)])
+        value, reason = parse_score(completion.content)
+        return Score(value=value, reason=reason, metadata={"evaluator_id": self.evaluator_id})
+
+
+class ImageCoherenceEvaluator:
+    evaluator_id = "image_coherence"
+
+    def __init__(self, llm_adapter: Any):
+        self.llm = llm_adapter
+
+    async def evaluate(self, prompt: str, response: str, **context: Any) -> Score:
+        image_url = context.get("image_url")
+        if not image_url:
+            return Score(
+                value=0.5,
+                reason="No image provided",
+                metadata={"evaluator_id": self.evaluator_id},
+            )
+        judge_text = (
+            f"Rate the coherence between this image and the accompanying text on a scale "
+            f"0.0-1.0 (1.0 = perfectly coherent). Text: {response}\n"
+            "Reply float then explanation."
+        )
+        completion = await self.llm.complete([build_vision_message(judge_text, image_url)])
+        value, reason = parse_score(completion.content)
+        return Score(value=value, reason=reason, metadata={"evaluator_id": self.evaluator_id})
+
+
+class ImageHelpfulnessEvaluator:
+    evaluator_id = "image_helpfulness"
+
+    def __init__(self, llm_adapter: Any):
+        self.llm = llm_adapter
+
+    async def evaluate(self, prompt: str, response: str, **context: Any) -> Score:
+        image_url = context.get("image_url")
+        if not image_url:
+            return Score(
+                value=0.5,
+                reason="No image provided",
+                metadata={"evaluator_id": self.evaluator_id},
+            )
+        judge_text = (
+            f"Rate how helpful this image is for understanding the topic on a scale 0.0-1.0. "
+            f"Topic/prompt: {prompt}\nReply float then explanation."
+        )
+        completion = await self.llm.complete([build_vision_message(judge_text, image_url)])
+        value, reason = parse_score(completion.content)
+        return Score(value=value, reason=reason, metadata={"evaluator_id": self.evaluator_id})
+
+
+class ImageReferenceEvaluator:
+    evaluator_id = "image_reference"
+
+    def __init__(self, llm_adapter: Any):
+        self.llm = llm_adapter
+
+    async def evaluate(self, prompt: str, response: str, **context: Any) -> Score:
+        image_url = context.get("image_url")
+        if not image_url:
+            return Score(
+                value=0.5,
+                reason="No image provided",
+                metadata={"evaluator_id": self.evaluator_id},
+            )
+        judge_text = (
+            f"Rate how accurately this text describes what is actually in the image on a "
+            f"scale 0.0-1.0. Text description: {response}\nReply float then explanation."
+        )
+        completion = await self.llm.complete([build_vision_message(judge_text, image_url)])
+        value, reason = parse_score(completion.content)
+        return Score(value=value, reason=reason, metadata={"evaluator_id": self.evaluator_id})
+
+
 __all__ = [
     "parse_score",
     "RelevanceEvaluator",
@@ -557,4 +673,9 @@ __all__ = [
     "ContextualRelevancyEvaluator",
     "AnswerRelevancyEvaluator",
     "RAGASEvaluator",
+    "TextToImageEvaluator",
+    "ImageEditingEvaluator",
+    "ImageCoherenceEvaluator",
+    "ImageHelpfulnessEvaluator",
+    "ImageReferenceEvaluator",
 ]
