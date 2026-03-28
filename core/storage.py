@@ -6,7 +6,8 @@ from typing import Any, Optional
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 from core.adapters import StorageAdapter
 from core.models import (
-    Artifact, EvaluatorResult, Invocation, Run, Result, Score, ToolCall, UsageRecord,
+    Annotation, Artifact, ContractVersion, DatasetVersion,
+    EvaluatorResult, Invocation, Run, Result, Score, ToolCall, UsageRecord,
 )
 
 
@@ -121,6 +122,46 @@ class UsageRecordRecord(SQLModel, table=True):
     estimated_cost_usd: Optional[float] = None
     latency_ms: Optional[int] = None
     raw_usage_json: Optional[str] = None
+
+
+class AnnotationRecord(SQLModel, table=True):
+    __tablename__ = "annotationrecord"
+
+    annotation_id: str = Field(primary_key=True)
+    invocation_id: str = Field(foreign_key="invocationrecord.invocation_id")
+    reviewer: str
+    label: Optional[str] = None
+    score: Optional[float] = None
+    notes: Optional[str] = None
+    corrected_output_artifact_id: Optional[str] = Field(
+        default=None, foreign_key="artifactrecord.artifact_id"
+    )
+    created_at: datetime
+    metadata_json: Optional[str] = None
+
+
+class DatasetVersionRecord(SQLModel, table=True):
+    __tablename__ = "datasetversionrecord"
+
+    dataset_version_id: str = Field(primary_key=True)
+    dataset: str
+    dataset_hash: str
+    git_sha: Optional[str] = None
+    source_path: str
+    created_at: datetime
+
+
+class ContractVersionRecord(SQLModel, table=True):
+    __tablename__ = "contractversionrecord"
+
+    contract_version_id: str = Field(primary_key=True)
+    contract_name: str
+    contract_hash: str
+    git_sha: Optional[str] = None
+    artifact_id: Optional[str] = Field(
+        default=None, foreign_key="artifactrecord.artifact_id"
+    )
+    created_at: datetime
 
 
 class SqliteStorage(StorageAdapter):

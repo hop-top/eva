@@ -1,6 +1,7 @@
 # server/gateway/routes.py — FastAPI router for /v1/proxy and /v1/contract/invoke
 from __future__ import annotations
 import json
+import random
 import uuid
 from datetime import datetime
 from typing import Any
@@ -65,6 +66,7 @@ router = APIRouter(prefix="/v1")
 
 _registry = None
 _storage = None
+_sample_rate: float = 1.0  # fraction of requests for which artifact writes occur
 
 
 def set_registry(registry) -> None:
@@ -76,6 +78,17 @@ def set_storage(storage) -> None:
     """Wire a SqliteStorage (or any compatible) instance for invocation persistence."""
     global _storage
     _storage = storage
+
+
+def set_sample_rate(rate: float) -> None:
+    """Set the observability sample rate (0.0-1.0). Called once at app startup."""
+    global _sample_rate
+    _sample_rate = max(0.0, min(1.0, rate))
+
+
+def _is_sampled() -> bool:
+    """Return True when this request should have full artifact writes."""
+    return random.random() < _sample_rate
 
 
 # Built-in evaluator constructors keyed by name
@@ -129,10 +142,14 @@ def _persist_invocation(
     eval_results: list | None = None,
     run_id: str | None = None,
     event_sink: EventSink | NullEventSink | None = None,
+    sampled: bool = True,
 ) -> None:
     """Build Artifact + Invocation + EvaluatorResult rows and persist via _storage.
 
     No-op when _storage is None.
+
+    When *sampled* is False the Invocation stub is still written (so counts remain
+    accurate) but artifact writes and evaluator-result rows are skipped.
 
     Event contract for upstream agents:
       Upstream agents MUST emit tool calls via context["event_sink"].emit_tool_call(...)
@@ -145,32 +162,36 @@ def _persist_invocation(
         return
 
     duration_ms = int((ended_at - started_at).total_seconds() * 1000)
-    req_artifact_id = str(uuid.uuid4())
-    req_json = json.dumps(request_body)
-    req_artifact = Artifact(
-        artifact_id=req_artifact_id,
-        kind="request",
-        content_type="application/json",
-        storage_backend="inline",
-        json_content=req_json,
-        size_bytes=len(req_json.encode()),
-        created_at=started_at,
-    )
-    artifacts = [req_artifact]
 
+    # --- artifact writes (skipped when not sampled) ---
+    req_artifact_id: str | None = None
     resp_artifact_id: str | None = None
-    if response_text is not None:
-        resp_artifact_id = str(uuid.uuid4())
-        resp_artifact = Artifact(
-            artifact_id=resp_artifact_id,
-            kind="response",
-            content_type="text/plain",
+    artifacts: list[Artifact] = []
+
+    if sampled:
+        req_artifact_id = str(uuid.uuid4())
+        req_json = json.dumps(request_body)
+        artifacts.append(Artifact(
+            artifact_id=req_artifact_id,
+            kind="request",
+            content_type="application/json",
             storage_backend="inline",
-            text_content=response_text,
-            size_bytes=len(response_text.encode()),
-            created_at=ended_at,
-        )
-        artifacts.append(resp_artifact)
+            json_content=req_json,
+            size_bytes=len(req_json.encode()),
+            created_at=started_at,
+        ))
+
+        if response_text is not None:
+            resp_artifact_id = str(uuid.uuid4())
+            artifacts.append(Artifact(
+                artifact_id=resp_artifact_id,
+                kind="response",
+                content_type="text/plain",
+                storage_backend="inline",
+                text_content=response_text,
+                size_bytes=len(response_text.encode()),
+                created_at=ended_at,
+            ))
 
     invocation_id = str(uuid.uuid4())
     invocation = Invocation(
@@ -189,23 +210,24 @@ def _persist_invocation(
     )
 
     ev_results: list[EvaluatorResult] = []
-    for r in (eval_results or []):
-        ev_results.append(EvaluatorResult(
-            evaluator_result_id=str(uuid.uuid4()),
-            invocation_id=invocation_id,
-            evaluator=r.evaluator,
-            mode=r.mode,
-            min_score=r.min_score,
-            score_value=r.score.value,
-            passed=r.passed,
-            reason=r.score.reason,
-            duration_ms=r.duration_ms,
-        ))
+    if sampled:
+        for r in (eval_results or []):
+            ev_results.append(EvaluatorResult(
+                evaluator_result_id=str(uuid.uuid4()),
+                invocation_id=invocation_id,
+                evaluator=r.evaluator,
+                mode=r.mode,
+                min_score=r.min_score,
+                score_value=r.score.value,
+                passed=r.passed,
+                reason=r.score.reason,
+                duration_ms=r.duration_ms,
+            ))
 
     _storage.save_invocation(invocation, ev_results, artifacts)
 
     # Drain event sink and persist ToolCall rows linked to this invocation (pass + fail paths)
-    if event_sink is not None:
+    if sampled and event_sink is not None:
         tool_events = event_sink.drain()
         if tool_events:
             _storage.save_tool_calls(invocation_id, tool_events)
@@ -265,6 +287,7 @@ async def proxy(req: ProxyRequest) -> Any:
             proxy_resp = await forward_request(target=req.target, body=body, headers={})
             return proxy_resp.text
 
+        sampled = _is_sampled()
         started_at = datetime.utcnow()
         retry_result = None
         exc_proxy: ProxyError | None = None
@@ -307,6 +330,7 @@ async def proxy(req: ProxyRequest) -> Any:
                     status=_status,
                     eval_results=_eval_results,
                     event_sink=sink,
+                    sampled=sampled,
                 )
 
         if exc_proxy is not None:
@@ -384,6 +408,7 @@ async def contract_invoke(req: InvokeRequest) -> Any:
             )
             return proxy_resp.text
 
+        invoke_sampled = _is_sampled()
         started_at = datetime.utcnow()
         retry_result = None
         exc_proxy: ProxyError | None = None
@@ -426,6 +451,7 @@ async def contract_invoke(req: InvokeRequest) -> Any:
                     status=_status,
                     eval_results=_eval_results,
                     event_sink=invoke_sink,
+                    sampled=invoke_sampled,
                 )
 
         if exc_proxy is not None:
