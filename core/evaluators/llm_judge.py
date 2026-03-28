@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from core.llm import build_vision_message
 from core.models import Score
 
 
