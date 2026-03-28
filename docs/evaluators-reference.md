@@ -98,8 +98,21 @@ Measures the response time and returns 1.0 if it falls within the allowed range.
 
 ---
 
-## Tier 2 (LLM-as-Judge) - *Planned for Phase 2*
-- `relevance`: Score response based on its alignment with the input.
-- `hallucination`: Detect if the agent generated false or unsubstantiated information.
-- `tone`: Evaluate if the response matches the required professional tone.
-- `safety`: Scan for harmful or disallowed content.
+## Tier 2 (LLM-as-Judge)
+
+Requires `EVA_JUDGE_MODEL` in env. Full reference: [llm-evaluators.md](llm-evaluators.md).
+
+**General:** `relevance`, `hallucination`, `tone`, `task_completion`, `safety`, `bias`,
+`toxicity`, `summarization`, `prompt_alignment`, `goal_accuracy`, `geval`
+
+**RAG:** `faithfulness`, `answer_relevancy`, `contextual_relevancy`, `contextual_precision`,
+`contextual_recall`, `ragas`
+
+**Tool-use / Agentic:** `tool_correctness`, `argument_correctness`, `tool_use`,
+`step_efficiency`, `plan_adherence`, `plan_quality`
+
+**Multi-turn:** `knowledge_retention`, `conversation_completeness`, `turn_relevancy`,
+`turn_faithfulness`, `role_adherence`
+
+**Image / Multimodal:** `text_to_image`, `image_editing`, `image_coherence`,
+`image_helpfulness`, `image_reference`
