@@ -85,6 +85,7 @@ class Artifact(BaseModel):
     blob_path: Optional[str] = None
     sha256: Optional[str] = None
     size_bytes: Optional[int] = None
+    mime_type: Optional[str] = None
     redacted: bool = False
     created_at: datetime
 
@@ -182,3 +183,19 @@ class ContractVersion(BaseModel):
     git_sha: Optional[str] = None
     artifact_id: Optional[str] = None  # FK to Artifact
     created_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# Multi-turn conversation models
+# ---------------------------------------------------------------------------
+
+class Turn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class ConversationTestCase(BaseModel):
+    id: str
+    turns: list[Turn]
+    expected_output: str | None = None
+    metadata: dict = {}
