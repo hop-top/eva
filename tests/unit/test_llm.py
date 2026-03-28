@@ -1,7 +1,7 @@
 # tests/unit/test_llm.py
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from core.llm import LiteLLMAdapter
+from core.llm import LiteLLMAdapter, build_vision_message
 
 
 def _make_fake_response(content: str) -> MagicMock:
@@ -56,3 +56,36 @@ async def test_complete_call_kwargs_override_constructor():
         await adapter.complete([{"role": "user", "content": "q"}], temperature=0.9)
 
     assert mock_acompletion.call_args.kwargs["temperature"] == 0.9
+
+
+# ---------------------------------------------------------------------------
+# build_vision_message
+# ---------------------------------------------------------------------------
+
+def test_build_vision_message_structure():
+    msg = build_vision_message("Describe this", "https://example.com/img.png")
+    assert msg["role"] == "user"
+    assert isinstance(msg["content"], list)
+    assert len(msg["content"]) == 2
+    assert msg["content"][0] == {"type": "text", "text": "Describe this"}
+    assert msg["content"][1] == {
+        "type": "image_url",
+        "image_url": {"url": "https://example.com/img.png"},
+    }
+
+
+@pytest.mark.asyncio
+async def test_complete_accepts_vision_message():
+    """LiteLLMAdapter.complete() passes image_url content messages to litellm."""
+    fake_response = _make_fake_response("It is a cat.")
+
+    vision_msg = build_vision_message("What is this?", "https://example.com/cat.jpg")
+    with patch("litellm.acompletion", new_callable=AsyncMock) as mock_acompletion:
+        mock_acompletion.return_value = fake_response
+        adapter = LiteLLMAdapter(model="gpt-4o")
+        result = await adapter.complete([vision_msg])
+
+    assert result.content == "It is a cat."
+    sent_messages = mock_acompletion.call_args.kwargs["messages"]
+    assert sent_messages[0]["role"] == "user"
+    assert isinstance(sent_messages[0]["content"], list)

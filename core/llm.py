@@ -52,3 +52,14 @@ class LiteLLMAdapter:
             usage=usage,
             raw_response=raw_response,
         )
+
+
+def build_vision_message(text: str, image_url: str) -> dict:
+    """Build an OpenAI-style vision message with text and image_url content parts."""
+    return {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": text},
+            {"type": "image_url", "image_url": {"url": image_url}},
+        ],
+    }
