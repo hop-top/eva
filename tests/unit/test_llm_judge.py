@@ -722,3 +722,98 @@ async def test_ragas_evaluator_averages_component_scores():
     assert score.metadata["component_scores"]["faithfulness"] == pytest.approx(0.8)
     assert score.metadata["component_scores"]["contextual_relevancy"] == pytest.approx(0.6)
     assert score.metadata["component_scores"]["answer_relevancy"] == pytest.approx(1.0)
+
+
+# ---------------------------------------------------------------------------
+# T-0187: TextToImageEvaluator
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_text_to_image_with_image_url():
+    llm = make_mock_llm("0.9\nGood match")
+    ev = TextToImageEvaluator(llm_adapter=llm)
+    score = await ev.evaluate(
+        prompt="A sunset over the ocean",
+        response="",
+        image_url="https://example.com/sunset.png",
+    )
+    assert score.value == pytest.approx(0.9)
+    assert score.metadata["evaluator_id"] == "text_to_image"
+
+
+@pytest.mark.asyncio
+async def test_text_to_image_no_image_url():
+    llm = make_mock_llm("0.9\nGood match")
+    ev = TextToImageEvaluator(llm_adapter=llm)
+    score = await ev.evaluate(prompt="A sunset", response="")
+    assert score.value == pytest.approx(0.5)
+    assert "No image" in score.reason
+
+
+# ---------------------------------------------------------------------------
+# T-0188: ImageEditingEvaluator
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_image_editing_with_image_url():
+    llm = make_mock_llm("0.9\nGood edit")
+    ev = ImageEditingEvaluator(llm_adapter=llm)
+    score = await ev.evaluate(
+        prompt="Add a red border",
+        response="",
+        image_url="https://example.com/edited.png",
+        original_image_url="https://example.com/original.png",
+    )
+    assert score.value == pytest.approx(0.9)
+    assert score.metadata["evaluator_id"] == "image_editing"
+
+
+# ---------------------------------------------------------------------------
+# T-0189: ImageCoherenceEvaluator
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_image_coherence_with_image_url():
+    llm = make_mock_llm("0.9\nCoherent")
+    ev = ImageCoherenceEvaluator(llm_adapter=llm)
+    score = await ev.evaluate(
+        prompt="",
+        response="A dog playing in the park",
+        image_url="https://example.com/dog.png",
+    )
+    assert score.value == pytest.approx(0.9)
+    assert score.metadata["evaluator_id"] == "image_coherence"
+
+
+# ---------------------------------------------------------------------------
+# T-0190: ImageHelpfulnessEvaluator
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_image_helpfulness_with_image_url():
+    llm = make_mock_llm("0.9\nVery helpful")
+    ev = ImageHelpfulnessEvaluator(llm_adapter=llm)
+    score = await ev.evaluate(
+        prompt="Explain photosynthesis",
+        response="",
+        image_url="https://example.com/diagram.png",
+    )
+    assert score.value == pytest.approx(0.9)
+    assert score.metadata["evaluator_id"] == "image_helpfulness"
+
+
+# ---------------------------------------------------------------------------
+# T-0191: ImageReferenceEvaluator
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_image_reference_with_image_url():
+    llm = make_mock_llm("0.9\nAccurate description")
+    ev = ImageReferenceEvaluator(llm_adapter=llm)
+    score = await ev.evaluate(
+        prompt="",
+        response="A red apple on a white table",
+        image_url="https://example.com/apple.png",
+    )
+    assert score.value == pytest.approx(0.9)
+    assert score.metadata["evaluator_id"] == "image_reference"

@@ -648,6 +648,120 @@ class ImageReferenceEvaluator:
         return Score(value=value, reason=reason, metadata={"evaluator_id": self.evaluator_id})
 
 
+class KnowledgeRetentionEvaluator:
+    evaluator_id = "knowledge_retention"
+
+    def __init__(self, llm_adapter: Any):
+        self.llm = llm_adapter
+
+    async def evaluate(self, prompt: str, response: str, **context: Any) -> Score:
+        conversation_history = context.get("conversation_history", [])
+        history_text = "\n".join(
+            f"{t['role']}: {t['content']}" for t in conversation_history
+        )
+        judge_prompt = (
+            "Rate how well the agent retained and correctly used information from earlier "
+            "in the conversation on a scale 0.0-1.0. "
+            f"Conversation history: {history_text}\n"
+            f"Latest response: {response}\n"
+            "Reply float then explanation."
+        )
+        completion = await self.llm.complete([{"role": "user", "content": judge_prompt}])
+        value, reason = parse_score(completion.content)
+        return Score(value=value, reason=reason, metadata={"evaluator_id": self.evaluator_id})
+
+
+class ConversationCompletenessEvaluator:
+    evaluator_id = "conversation_completeness"
+
+    def __init__(self, llm_adapter: Any):
+        self.llm = llm_adapter
+
+    async def evaluate(self, prompt: str, response: str, **context: Any) -> Score:
+        conversation_history = context.get("conversation_history", [])
+        history_text = "\n".join(
+            f"{t['role']}: {t['content']}" for t in conversation_history
+        )
+        judge_prompt = (
+            "Rate how completely all user requests and needs in this conversation were "
+            "addressed on a scale 0.0-1.0. "
+            f"Conversation: {history_text}\n"
+            f"Final response: {response}\n"
+            "Reply float then explanation."
+        )
+        completion = await self.llm.complete([{"role": "user", "content": judge_prompt}])
+        value, reason = parse_score(completion.content)
+        return Score(value=value, reason=reason, metadata={"evaluator_id": self.evaluator_id})
+
+
+class TurnRelevancyEvaluator:
+    evaluator_id = "turn_relevancy"
+
+    def __init__(self, llm_adapter: Any):
+        self.llm = llm_adapter
+
+    async def evaluate(self, prompt: str, response: str, **context: Any) -> Score:
+        judge_prompt = (
+            "Rate how relevant this response is to the current user message in context of "
+            "the conversation on a scale 0.0-1.0. "
+            f"Current user message: {prompt}\n"
+            f"Response: {response}\n"
+            "Reply float then explanation."
+        )
+        completion = await self.llm.complete([{"role": "user", "content": judge_prompt}])
+        value, reason = parse_score(completion.content)
+        return Score(value=value, reason=reason, metadata={"evaluator_id": self.evaluator_id})
+
+
+class TurnFaithfulnessEvaluator:
+    evaluator_id = "turn_faithfulness"
+
+    def __init__(self, llm_adapter: Any):
+        self.llm = llm_adapter
+
+    async def evaluate(self, prompt: str, response: str, **context: Any) -> Score:
+        conversation_history = context.get("conversation_history", [])
+        retrieval_context = context.get("retrieval_context", "")
+        history_text = "\n".join(
+            f"{t['role']}: {t['content']}" for t in conversation_history
+        )
+        judge_prompt = (
+            "Rate the factual faithfulness of this response given the conversation context "
+            "and any retrieved information on a scale 0.0-1.0. "
+            f"Conversation history: {history_text}\n"
+            f"Retrieval context: {retrieval_context}\n"
+            f"Response: {response}\n"
+            "Reply float then explanation."
+        )
+        completion = await self.llm.complete([{"role": "user", "content": judge_prompt}])
+        value, reason = parse_score(completion.content)
+        return Score(value=value, reason=reason, metadata={"evaluator_id": self.evaluator_id})
+
+
+class RoleAdherenceEvaluator:
+    evaluator_id = "role_adherence"
+
+    def __init__(self, llm_adapter: Any, persona: str = "assistant"):
+        self.llm = llm_adapter
+        self.persona = persona
+
+    async def evaluate(self, prompt: str, response: str, **context: Any) -> Score:
+        conversation_history = context.get("conversation_history", [])
+        history_text = "\n".join(
+            f"{t['role']}: {t['content']}" for t in conversation_history
+        )
+        judge_prompt = (
+            f"Rate how consistently the agent maintained the '{self.persona}' persona "
+            "throughout this conversation on a scale 0.0-1.0. "
+            f"Conversation: {history_text}\n"
+            f"Latest response: {response}\n"
+            "Reply float then explanation."
+        )
+        completion = await self.llm.complete([{"role": "user", "content": judge_prompt}])
+        value, reason = parse_score(completion.content)
+        return Score(value=value, reason=reason, metadata={"evaluator_id": self.evaluator_id})
+
+
 __all__ = [
     "parse_score",
     "RelevanceEvaluator",
@@ -678,4 +792,9 @@ __all__ = [
     "ImageCoherenceEvaluator",
     "ImageHelpfulnessEvaluator",
     "ImageReferenceEvaluator",
+    "KnowledgeRetentionEvaluator",
+    "ConversationCompletenessEvaluator",
+    "TurnRelevancyEvaluator",
+    "TurnFaithfulnessEvaluator",
+    "RoleAdherenceEvaluator",
 ]
