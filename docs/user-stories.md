@@ -24,6 +24,27 @@ Shared base persona: [Solo Developer](../../../../.docs/personas/individuals/sol
 
 ---
 
+## Alex — Developer & Evaluator User (Metrics Expansion)
+
+Associated Eva persona: [Alex — AI Engineer](./personas.md)
+Shared base persona: [Solo Developer](../../../../.docs/personas/individuals/solo-developer.md)
+
+| ID     | Story |
+|--------|-------|
+| [US-031](./stories/US-031-rag-evaluation.md) | As Alex, I want to evaluate RAG pipeline quality using faithfulness, contextual relevancy, |
+|        | precision, recall, answer relevancy, and RAGAS composite scores so that I can identify retrieval |
+|        | and grounding failures before they reach users. |
+| [US-032](./stories/US-032-tool-use-evaluation.md) | As Alex, I want to evaluate tool usage quality and plan execution so that agentic failures are |
+|        | caught before deployment. |
+| [US-033](./stories/US-033-multi-turn-evaluation.md) | As Alex, I want to evaluate multi-turn conversations so that issues like knowledge loss, |
+|        | incomplete resolution, and persona drift are detected across conversation history. |
+| [US-034](./stories/US-034-content-quality-evaluation.md) | As Alex, I want dedicated evaluators for bias, toxicity, summarization quality, prompt |
+|        | alignment, and goal accuracy so that nuanced content quality issues are measured independently. |
+| [US-035](./stories/US-035-image-evaluation.md) | As Alex, I want to evaluate image generation and image-grounded responses so that visual output |
+|        | quality is verifiable alongside text quality. |
+
+---
+
 ## Sam — Platform Engineer
 
 Associated Eva persona: [Sam — Platform Engineer](./personas.md)
@@ -149,3 +170,8 @@ Shared base persona: [Platform Engineer](../../../../.docs/personas/individuals/
 | US-028 | Riley   | `eva annotate add/list`    | test_annotation_commands.py   |
 | US-029 | Riley   | evaluator vs human review  | (future; plan)                |
 | US-030 | Riley   | invocation triage workflow | (future; plan)                |
+| US-031 | Alex    | RAG evaluators             | test_rag_evaluators.py (future)        |
+| US-032 | Alex    | Tool/agentic evaluators    | test_tool_evaluators.py (future)       |
+| US-033 | Alex    | Multi-turn evaluators      | test_multi_turn_evaluators.py (future) |
+| US-034 | Alex    | Content quality evaluators | test_content_evaluators.py (future)    |
+| US-035 | Alex    | Image evaluators           | test_image_evaluators.py (future)      |
