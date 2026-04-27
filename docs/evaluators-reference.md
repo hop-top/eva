@@ -84,10 +84,78 @@ evaluators:
 
 ---
 
-## `status_code`
+## `status_code` / `exit_code`
 
-*(Planned for Phase 1 Integration)*
-Validates that the HTTP response code from the agent matches a set of expected values.
+Asserts that a flow-exec step's `exit_code` (or HTTP-style `status_code`) field matches an
+expected integer or falls within an allowed set. `exit_code` is registered as an alias for
+`status_code` — both names resolve to the same evaluator class. Use whichever reads more
+naturally for your contract; `exit_code` matches the field emitted by tlc's `exec` step
+type, while `status_code` mirrors HTTP convention.
+
+The evaluator receives the step output as a JSON-encoded string. It looks up `exit_code`
+first, then falls back to `status_code`. Booleans are rejected (Python's `bool` is an int
+subclass — guarded explicitly).
+
+### Configuration Properties:
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `step` | `string` | No | Identifier of the flow step whose output to evaluate. Used by the runner to route the correct payload; metadata only at the evaluator level. |
+| `expected` | `int` | One of | Single integer the field must equal exactly. |
+| `expected_in` | `list[int]` | One of | Set of acceptable integers. Mutually exclusive with `expected`. |
+
+Exactly one of `expected` or `expected_in` must be provided.
+
+### Example Contract Usage:
+```yaml
+evaluators:
+  - type: status_code
+    step: cli-version
+    expected: 0
+  # exit_code alias — same behavior:
+  - type: exit_code
+    step: cli-version
+    expected: 0
+  # allowed set:
+  - type: status_code
+    step: cli-version
+    expected_in: [0, 2]
+```
+
+> **Note:** `step_status` was historically referenced in some upstream tlc fixtures
+> but never landed in eva. Use `status_code` (or its `exit_code` alias) for exit-code
+> checks — those fixtures should be rewritten to point at `status_code`.
+
+---
+
+## `equals`
+
+Generic field-equality evaluator. Asserts that a named field in a JSON step-output payload
+equals an expected literal. Supports any JSON-representable type: string, int, float, bool,
+list, dict, null.
+
+Type checking is strict (`str` vs `int` is a mismatch) with one exception: int/float
+cross-comparison is allowed because JSON numbers may decode either way. Booleans are kept
+distinct from integers.
+
+### Configuration Properties:
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `field` | `string` | **Yes** | Name of the field in the step output to compare. |
+| `expected` | `any` | **Yes** | Literal value the field must equal. `null` is valid. |
+| `step` | `string` | No | Identifier of the flow step whose output to evaluate. |
+
+### Example Contract Usage:
+```yaml
+evaluators:
+  - type: equals
+    step: parse-config
+    field: log_level
+    expected: "info"
+  - type: equals
+    step: parse-config
+    field: retries
+    expected: 3
+```
 
 ---
 
