@@ -397,9 +397,19 @@ async def contract_invoke(req: InvokeRequest) -> Any:
         #   context["event_sink"].emit_tool_call(tool_name, args, ...)
         invoke_sink = EventSink()
         context = {"request_id": request_id, "trace_id": trace_id, "event_sink": invoke_sink}
+        # EvaluatorRef carries per-evaluator config (substring, pattern, schema, …)
+        # as pydantic extras (see core.models.EvaluatorRef, T-0260). Forward them
+        # into EvaluatorSpec.config so factories receive the actual config.
         evaluator_map = _build_evaluator_map(
-            [EvaluatorSpec(name=ref.name, mode=ref.mode, min_score=ref.min_score)
-             for ref in contract.evaluators]
+            [
+                EvaluatorSpec(
+                    name=ref.name,
+                    mode=ref.mode,
+                    min_score=ref.min_score,
+                    config=(ref.__pydantic_extra__ or {}),
+                )
+                for ref in contract.evaluators
+            ]
         )
 
         async def call_agent(body: dict) -> str:

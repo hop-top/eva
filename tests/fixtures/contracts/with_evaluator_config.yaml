@@ -1,0 +1,19 @@
+name: with_evaluator_config
+provider: agent-x
+request_schema:
+  type: object
+evaluators:
+  - name: contains
+    mode: binary
+    substring: "foo"
+    case_sensitive: false
+  - name: regex
+    mode: binary
+    pattern: "^hello"
+  - name: json_schema_valid
+    mode: binary
+    schema:
+      type: object
+      required: [ok]
+retry_policy:
+  max_retries: 0

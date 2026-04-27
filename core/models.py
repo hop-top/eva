@@ -2,7 +2,7 @@
 from __future__ import annotations
 from datetime import datetime
 from typing import Literal, Optional
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class Score(BaseModel):
@@ -12,6 +12,10 @@ class Score(BaseModel):
 
 
 class EvaluatorRef(BaseModel):
+    # Per-evaluator config (substring, pattern, schema, …) flows through as
+    # extras so gateway + CLI share one source of truth (T-0260).
+    model_config = ConfigDict(extra="allow")
+
     name: str
     mode: Literal["binary", "threshold", "warn"] = "binary"
     min_score: float = 1.0
