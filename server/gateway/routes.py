@@ -8,10 +8,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from core.evaluators.contains import ContainsEvaluator
-from core.evaluators.regex_match import RegexEvaluator
-from core.evaluators.json_schema_valid import JsonSchemaEvaluator
-from core.evaluators.no_pii import NoPiiEvaluator
+from core.evaluators.builtin import BUILTIN_EVALUATOR_FACTORIES
 from core.costing import estimate_cost
 from core.events import EventSink, NullEventSink
 from core.models import (
@@ -91,16 +88,11 @@ def _is_sampled() -> bool:
     return random.random() < _sample_rate
 
 
-# Built-in evaluator constructors keyed by name
-_BUILTIN_EVALUATOR_FACTORIES = {
-    "contains": lambda cfg: ContainsEvaluator(
-        substring=cfg.get("substring", ""),
-        case_sensitive=cfg.get("case_sensitive", True),
-    ),
-    "regex": lambda cfg: RegexEvaluator(pattern=cfg.get("pattern", ".*")),
-    "json_schema_valid": lambda cfg: JsonSchemaEvaluator(schema=cfg.get("schema", {})),
-    "no_pii": lambda cfg: NoPiiEvaluator(),
-}
+# Built-in evaluator factories live in core.evaluators.builtin (see imports
+# above). Both the gateway and the standalone `eva run --contract` CLI
+# dispatch through that registry, so a new evaluator added there shows up
+# in both invocation paths automatically.
+_BUILTIN_EVALUATOR_FACTORIES = BUILTIN_EVALUATOR_FACTORIES
 
 
 class EvaluatorSpec(BaseModel):

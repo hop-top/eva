@@ -1,4 +1,5 @@
 # cli/main.py
+import sys
 from importlib.metadata import version as _pkg_version, PackageNotFoundError
 from pathlib import Path
 import typer
@@ -114,12 +115,63 @@ def contract_diff(
 
 @app.command()
 def run(
-    dataset: Path = typer.Option(..., "--dataset", help="Path to eval dataset (YAML or JSONL)"),
+    dataset: Path = typer.Option(None, "--dataset", help="Path to eval dataset (YAML or JSONL)"),
     target: str = typer.Option(None, "--target", help="Override target agent URL"),
     concurrency: int = typer.Option(1, "--concurrency", help="Number of concurrent tests"),
     no_tui: bool = typer.Option(False, "--no-tui", help="Disable rich TUI (for CI)"),
+    contract: Path = typer.Option(
+        None, "--contract", help="Standalone mode: contract YAML to evaluate against --input"
+    ),
+    input_path: str = typer.Option(
+        None, "--input", help="Standalone mode: input file (or '-' for stdin)"
+    ),
+    fmt: str = typer.Option(
+        None, "--format", help="Standalone mode output: 'text' (default) or 'json' (CI default)"
+    ),
+    quiet: bool = typer.Option(False, "--quiet", help="Standalone mode: suppress passing evaluator output"),
 ):
-    """Run evaluations against a target agent."""
+    """Run evaluations.
+
+    Two modes:
+      * Dataset mode (default): `eva run --dataset suite.yaml --target <url>`
+        — calls a live agent for each test case.
+      * Standalone contract mode: `eva run --contract c.yaml --input data.json`
+        — evaluates a single response artifact against a contract. No agent
+        call, no gateway. Intended for CI smoke and local dev.
+    """
+    # Standalone contract mode dispatch
+    if contract is not None or input_path is not None:
+        if contract is None or input_path is None:
+            console.print(
+                "[red]Error:[/red] --contract and --input must be used together"
+            )
+            raise typer.Exit(2)
+        if dataset is not None or target is not None:
+            console.print(
+                "[red]Error:[/red] --contract/--input cannot be combined with --dataset/--target"
+            )
+            raise typer.Exit(2)
+        from cli.run_contract import run_contract_cli
+
+        chosen_fmt = fmt or ("json" if not sys.stdout.isatty() else "text")
+        if chosen_fmt not in ("json", "text"):
+            console.print("[red]Error:[/red] --format must be 'json' or 'text'")
+            raise typer.Exit(2)
+        code = run_contract_cli(
+            contract=contract,
+            input_path=input_path,
+            fmt=chosen_fmt,
+            quiet=quiet,
+        )
+        raise typer.Exit(code)
+
+    if dataset is None:
+        console.print(
+            "[red]Error:[/red] --dataset is required (dataset mode) "
+            "or use --contract/--input for standalone mode"
+        )
+        raise typer.Exit(2)
+
     import asyncio
     import httpx
     from core.dataset import load_dataset
