@@ -15,10 +15,10 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 import yaml
 
+from core.contract import ContractValidationError, load_contract
 from core.evaluators.builtin import BUILTIN_EVALUATOR_FACTORIES
 from core.models import Score
 
@@ -81,25 +81,6 @@ def _load_input(input_path: str) -> str:
     return path.read_text()
 
 
-def _load_contract_raw(contract_path: Path) -> dict[str, Any]:
-    """Load + minimally validate a contract YAML. Returns raw dict (preserves
-    evaluator config keys that the pydantic Contract model would drop)."""
-    if not contract_path.exists():
-        raise FileNotFoundError(f"Contract file not found: {contract_path}")
-    try:
-        raw = yaml.safe_load(contract_path.read_text())
-    except yaml.YAMLError as e:
-        raise ValueError(f"Malformed contract YAML: {e}") from e
-    if not isinstance(raw, dict):
-        raise ValueError("Contract YAML must be a mapping")
-    if "name" not in raw:
-        raise ValueError("Contract must have a 'name' field")
-    raw.setdefault("evaluators", [])
-    if not isinstance(raw["evaluators"], list):
-        raise ValueError("Contract 'evaluators' must be a list")
-    return raw
-
-
 def _passed(score: float, mode: str, min_score: float) -> bool:
     if mode == "warn":
         return True
@@ -115,9 +96,14 @@ def evaluate_contract(contract_path: Path, response_text: str) -> ContractRunRep
     Returns a ContractRunReport with one outcome per recognised evaluator.
     Unknown evaluators (no factory) are recorded under `skipped`.
     """
-    raw = _load_contract_raw(contract_path)
-    name = raw["name"]
-    eval_specs: list[dict] = raw["evaluators"]
+    # YAMLError → ValueError so callers see a uniform "bad input" exception
+    # (load_contract lets YAMLError bubble; CLI layer maps ValueError → exit 2).
+    try:
+        contract = load_contract(contract_path)
+    except yaml.YAMLError as e:
+        raise ValueError(f"Malformed contract YAML: {e}") from e
+    except ContractValidationError as e:
+        raise ValueError(str(e)) from e
 
     started = time.monotonic()
 
@@ -125,28 +111,27 @@ def evaluate_contract(contract_path: Path, response_text: str) -> ContractRunRep
     skipped: list[str] = []
     overall_pass = True
 
-    # Build one evaluator per spec (preserves duplicate names with distinct
-    # configs — e.g. two `contains` checks with different substrings).
-    for spec in eval_specs:
-        ev_name = spec.get("name", "")
-        mode = spec.get("mode", "binary")
-        min_score = float(spec.get("min_score", 1.0))
-        factory = BUILTIN_EVALUATOR_FACTORIES.get(ev_name)
+    # One evaluator per ref (duplicate names with distinct configs supported —
+    # e.g. two `contains` checks with different substrings). Per-evaluator
+    # config (substring, pattern, schema, …) flows via __pydantic_extra__
+    # since EvaluatorRef sets extra="allow" (T-0260) — same path as gateway.
+    for ref in contract.evaluators:
+        factory = BUILTIN_EVALUATOR_FACTORIES.get(ref.name)
         if factory is None:
-            skipped.append(ev_name)
+            skipped.append(ref.name)
             continue
-        ev = factory(spec)
+        ev = factory(ref.__pydantic_extra__ or {})
         t0 = time.monotonic()
         score: Score = ev._run(response_text)
         dur_ms = int((time.monotonic() - t0) * 1000)
-        passed = _passed(score.value, mode, min_score)
+        passed = _passed(score.value, ref.mode, ref.min_score)
         if not passed:
             overall_pass = False
         outcomes.append(
             EvaluatorOutcome(
-                name=ev_name,
-                mode=mode,
-                min_score=min_score,
+                name=ref.name,
+                mode=ref.mode,
+                min_score=ref.min_score,
                 score=score.value,
                 passed=passed,
                 reason=score.reason,
@@ -156,7 +141,7 @@ def evaluate_contract(contract_path: Path, response_text: str) -> ContractRunRep
 
     total_ms = int((time.monotonic() - started) * 1000)
     return ContractRunReport(
-        contract=name,
+        contract=contract.name,
         passed=overall_pass,
         duration_ms=total_ms,
         outcomes=outcomes,
