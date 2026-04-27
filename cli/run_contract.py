@@ -144,7 +144,7 @@ def evaluate_contract(contract_path: Path, response_text: str) -> ContractRunRep
             continue
         ev = factory(ref.__pydantic_extra__ or {})
         t0 = time.monotonic()
-        score: Score = ev._run(response_text)
+        score: Score = ev.run(response_text)
         dur_ms = int((time.monotonic() - t0) * 1000)
         passed = _passed(score.value, ref.mode, ref.min_score)
         if not passed:

@@ -16,26 +16,26 @@ def _payload(**fields) -> str:
 # --- status_code: happy path ---
 def test_status_code_pass_exit_code_field():
     e = StatusCodeEvaluator(step="cli-version", expected=0)
-    score = e._run(_payload(exit_code=0, stdout="v1.0", stderr=""))
+    score = e.run(_payload(exit_code=0, stdout="v1.0", stderr=""))
     assert score.value == 1.0
 
 
 def test_status_code_pass_status_code_field():
     e = StatusCodeEvaluator(step="http-call", expected=200)
-    score = e._run(_payload(status_code=200, body="{}"))
+    score = e.run(_payload(status_code=200, body="{}"))
     assert score.value == 1.0
 
 
 def test_status_code_pass_expected_in_set():
     e = StatusCodeEvaluator(step="cli-version", expected_in=[0, 2])
-    score = e._run(_payload(exit_code=2, stdout="", stderr="warn"))
+    score = e.run(_payload(exit_code=2, stdout="", stderr="warn"))
     assert score.value == 1.0
 
 
 # --- status_code: failure cases ---
 def test_status_code_fail_mismatch():
     e = StatusCodeEvaluator(step="cli-version", expected=0)
-    score = e._run(_payload(exit_code=1, stdout="", stderr="boom"))
+    score = e.run(_payload(exit_code=1, stdout="", stderr="boom"))
     assert score.value == 0.0
     assert "expected 0" in score.reason
     assert "got 1" in score.reason
@@ -43,14 +43,14 @@ def test_status_code_fail_mismatch():
 
 def test_status_code_fail_not_in_set():
     e = StatusCodeEvaluator(step="cli-version", expected_in=[0, 2])
-    score = e._run(_payload(exit_code=127))
+    score = e.run(_payload(exit_code=127))
     assert score.value == 0.0
     assert "127" in score.reason
 
 
 def test_status_code_fail_no_field():
     e = StatusCodeEvaluator(step="cli-version", expected=0)
-    score = e._run(_payload(stdout="v1.0", stderr=""))
+    score = e.run(_payload(stdout="v1.0", stderr=""))
     assert score.value == 0.0
     assert "no integer" in score.reason
 
@@ -58,28 +58,28 @@ def test_status_code_fail_no_field():
 # --- status_code: malformed input ---
 def test_status_code_invalid_json():
     e = StatusCodeEvaluator(step="cli-version", expected=0)
-    score = e._run("not json at all")
+    score = e.run("not json at all")
     assert score.value == 0.0
     assert "invalid JSON" in score.reason
 
 
 def test_status_code_payload_not_object():
     e = StatusCodeEvaluator(step="cli-version", expected=0)
-    score = e._run("[1, 2, 3]")
+    score = e.run("[1, 2, 3]")
     assert score.value == 0.0
     assert "not a JSON object" in score.reason
 
 
 def test_status_code_field_not_int():
     e = StatusCodeEvaluator(step="cli-version", expected=0)
-    score = e._run(_payload(exit_code="zero"))
+    score = e.run(_payload(exit_code="zero"))
     assert score.value == 0.0
 
 
 def test_status_code_field_bool_rejected():
     # bool is a subclass of int in Python — explicitly reject.
     e = StatusCodeEvaluator(step="cli-version", expected=0)
-    score = e._run(_payload(exit_code=False))
+    score = e.run(_payload(exit_code=False))
     assert score.value == 0.0
 
 
@@ -101,7 +101,7 @@ def test_exit_code_is_status_code_alias():
 
 def test_exit_code_alias_works_end_to_end():
     e = ExitCodeEvaluator(step="cli-version", expected=0)
-    score = e._run(_payload(exit_code=0))
+    score = e.run(_payload(exit_code=0))
     assert score.value == 1.0
 
 
@@ -115,31 +115,31 @@ def test_registry_has_both_names():
 # --- equals: happy path ---
 def test_equals_string_pass():
     e = EqualsEvaluator(field="log_level", expected="info")
-    score = e._run(_payload(log_level="info", verbose=False))
+    score = e.run(_payload(log_level="info", verbose=False))
     assert score.value == 1.0
 
 
 def test_equals_int_pass():
     e = EqualsEvaluator(field="count", expected=42)
-    score = e._run(_payload(count=42))
+    score = e.run(_payload(count=42))
     assert score.value == 1.0
 
 
 def test_equals_bool_pass():
     e = EqualsEvaluator(field="ok", expected=True)
-    score = e._run(_payload(ok=True))
+    score = e.run(_payload(ok=True))
     assert score.value == 1.0
 
 
 def test_equals_list_pass():
     e = EqualsEvaluator(field="tags", expected=["a", "b"])
-    score = e._run(_payload(tags=["a", "b"]))
+    score = e.run(_payload(tags=["a", "b"]))
     assert score.value == 1.0
 
 
 def test_equals_dict_pass():
     e = EqualsEvaluator(field="meta", expected={"k": 1})
-    score = e._run(_payload(meta={"k": 1}))
+    score = e.run(_payload(meta={"k": 1}))
     assert score.value == 1.0
 
 
@@ -147,14 +147,14 @@ def test_equals_int_float_cross_compare():
     # JSON numbers may decode as int or float — equality across the
     # numeric tower is intentional.
     e = EqualsEvaluator(field="ratio", expected=1.0)
-    score = e._run(_payload(ratio=1))
+    score = e.run(_payload(ratio=1))
     assert score.value == 1.0
 
 
 # --- equals: failure cases ---
 def test_equals_value_mismatch():
     e = EqualsEvaluator(field="log_level", expected="info")
-    score = e._run(_payload(log_level="debug"))
+    score = e.run(_payload(log_level="debug"))
     assert score.value == 0.0
     assert "log_level" in score.reason
     assert "debug" in score.reason
@@ -162,7 +162,7 @@ def test_equals_value_mismatch():
 
 def test_equals_field_missing():
     e = EqualsEvaluator(field="log_level", expected="info")
-    score = e._run(_payload(other="value"))
+    score = e.run(_payload(other="value"))
     assert score.value == 0.0
     assert "missing" in score.reason
 
@@ -170,14 +170,14 @@ def test_equals_field_missing():
 def test_equals_type_mismatch():
     # bool vs int is the classic Python footgun — keep them distinct.
     e = EqualsEvaluator(field="ok", expected=True)
-    score = e._run(_payload(ok=1))
+    score = e.run(_payload(ok=1))
     assert score.value == 0.0
     assert "type mismatch" in score.reason
 
 
 def test_equals_string_vs_int_type_mismatch():
     e = EqualsEvaluator(field="count", expected=42)
-    score = e._run(_payload(count="42"))
+    score = e.run(_payload(count="42"))
     assert score.value == 0.0
     assert "type mismatch" in score.reason
 
@@ -185,14 +185,14 @@ def test_equals_string_vs_int_type_mismatch():
 # --- equals: malformed input ---
 def test_equals_invalid_json():
     e = EqualsEvaluator(field="log_level", expected="info")
-    score = e._run("garbage")
+    score = e.run("garbage")
     assert score.value == 0.0
     assert "invalid JSON" in score.reason
 
 
 def test_equals_payload_not_object():
     e = EqualsEvaluator(field="log_level", expected="info")
-    score = e._run('"just a string"')
+    score = e.run('"just a string"')
     assert score.value == 0.0
     assert "not a JSON object" in score.reason
 
@@ -210,7 +210,7 @@ def test_equals_requires_expected():
 
 def test_equals_accepts_none_as_expected():
     e = EqualsEvaluator(field="optional", expected=None)
-    score = e._run(_payload(optional=None))
+    score = e.run(_payload(optional=None))
     assert score.value == 1.0
 
 

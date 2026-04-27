@@ -29,7 +29,7 @@ class EqualsEvaluator:
         provided" use a different evaluator.
     step:
         Identifier of the flow step whose output to evaluate. Stored
-        as metadata for the runner; not used inside ``_run``.
+        as metadata for the runner; not used inside ``run``.
     """
 
     def __init__(
@@ -46,7 +46,7 @@ class EqualsEvaluator:
         self.expected = expected
         self.step = step
 
-    def _run(self, response: str) -> Score:
+    def run(self, response: str) -> Score:
         try:
             payload = json.loads(response)
         except json.JSONDecodeError as e:
@@ -78,3 +78,5 @@ class EqualsEvaluator:
             value=0.0,
             reason=f"equals: '{self.field}' expected {self.expected!r}, got {actual!r}",
         )
+
+    _run = run  # deprecated alias; remove in v0.2.0

@@ -11,8 +11,10 @@ _PII_PATTERNS = [
 
 
 class NoPiiEvaluator:
-    def _run(self, response: str) -> Score:
+    def run(self, response: str) -> Score:
         for pattern, label in _PII_PATTERNS:
             if pattern.search(response):
                 return Score(value=0.0, reason=f"Response contains {label}")
         return Score(value=1.0)
+
+    _run = run  # deprecated alias; remove in v0.2.0
