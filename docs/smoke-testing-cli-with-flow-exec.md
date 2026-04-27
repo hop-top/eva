@@ -1,4 +1,4 @@
-# Cookbook: Smoke-Testing a CLI with `tlc flow exec` + Eva
+# Cookbook: Smoke-Testing a CLI with `tlc flow test` + Eva
 
 End-to-end worked example: gate a CLI's behaviour in CI by recording its
 output once, then evaluating that recording against an Eva contract on every
@@ -8,11 +8,12 @@ The example uses [`tlc`](https://github.com/hop-top/tlc) as the CLI under
 test (`tlc task create`), but the recipe applies to any CLI that produces
 structured output.
 
-> **Status note.** The `status_code`, `exit_code`, and `equals` evaluators
-> referenced below land in the same `flow-exec-evaluators` track as this
-> cookbook. The standalone `eva run --contract --input` CLI (T-0258) is
-> independent and works today — until the new evaluators merge, you can
-> exercise the same wiring with `regex`, `contains`, and `json_schema_valid`.
+> **Scope.** This cookbook only uses evaluators that already exist on
+> `eva` `main` today: `regex` and `contains`. Both work against arbitrary
+> response strings and need no flow-step routing. A follow-up cookbook
+> (`hop-top/eva#flow-exec-evaluators`) covers the structured
+> `status_code` / `equals` evaluators that pull typed fields out of a
+> step's JSON output.
 
 ---
 
@@ -20,7 +21,7 @@ structured output.
 
 | Tool | Purpose |
 |------|---------|
-| `tlc` | CLI under test; provides `flow exec` step + recording mode |
+| `tlc` | CLI under test; provides `flow test` record/replay sandbox |
 | `eva` | Standalone contract gate (`eva run --contract --input`) |
 
 ---
@@ -33,20 +34,22 @@ file lives in the [`tlc` repo](https://github.com/hop-top/tlc) under
 
 ```yaml
 # .tlc/flows/task-create-smoke.yaml
+flow_id: "flow:task-create-smoke:1.0"
 name: task-create-smoke
+version: "1.0"
+entry_step: create
 steps:
-  - id: create
+  create:
+    step_id: create
     type: exec
     command: tlc
     args: [task, create, "smoke test task"]
-    capture:
-      - exit_code
-      - stdout
-      - stderr
+    capture: [exit_code, stdout, stderr]
 ```
 
-`tlc flow exec` records this step's output as a JSON artifact and replays it
-deterministically on later runs.
+`tlc flow test` records this step's output as a cassette under
+`<flowDir>/fixtures/<flowName>/<run-name>/` and replays it deterministically
+on later runs.
 
 ---
 
@@ -57,54 +60,57 @@ deterministically on later runs.
 name: tlc_task_create_smoke
 provider: tlc
 evaluators:
-  - name: status_code      # exec succeeded
-    expected: 0
-    field: exit_code
-
   - name: regex            # task ID was emitted
     pattern: 'Created task T-[0-9]{4}'
-    field: stdout
 
   - name: contains         # initial state is TODO
     substring: 'TODO'
-    field: stdout
 ```
 
-Each evaluator pulls the field it needs from the recorded JSON artifact.
+Both evaluators run against the captured `stdout` string — no schema
+discriminator, no field routing. Pipe the recording's `stdout` field into
+`eva run --input` (step 5 below).
 
 ---
 
 ## 3 — Record the flow (once, locally)
 
 ```bash
-tlc flow record .tlc/flows/task-create-smoke.yaml \
-  --out artifacts/task-create-smoke.json
+tlc flow test .tlc/flows/task-create-smoke.yaml happy-path --record
 ```
 
-`artifacts/task-create-smoke.json` now contains the captured `exit_code`,
-`stdout`, `stderr` from the live invocation. Commit it.
+Cassettes are written under
+`.tlc/flows/fixtures/task-create-smoke/happy-path/`. Commit that directory.
 
 ---
 
 ## 4 — Replay the flow (CI: deterministic)
 
 ```bash
-tlc flow replay .tlc/flows/task-create-smoke.yaml \
-  --recording artifacts/task-create-smoke.json
+tlc flow test .tlc/flows/task-create-smoke.yaml happy-path
 ```
 
-Replay uses the recorded artifact instead of executing `tlc` for real. Use
-this when the test only cares that the contract holds, not that the system
-under test is live.
+Without `--record`, `tlc flow test` replays from the cassette directory it
+discovers under `fixtures/<flowName>/`. No live `tlc` process is spawned;
+exit code 2 means a cassette miss.
 
 ---
 
 ## 5 — Gate on the contract (CI: hermetic)
 
+Pull the recorded `stdout` out of the cassette and feed it to `eva run`. The
+cassette layout is owned by `tlc`/`xrr`; this snippet assumes a JSON
+recording with a `stdout` field — adapt the `jq` path to whatever format
+your cassette uses.
+
 ```bash
+jq -r '.stdout' \
+  .tlc/flows/fixtures/task-create-smoke/happy-path/exec.json \
+  > /tmp/task-create-stdout.txt
+
 eva run \
   --contract contracts/tlc_task_create.yaml \
-  --input artifacts/task-create-smoke.json \
+  --input /tmp/task-create-stdout.txt \
   --format json
 ```
 
@@ -118,9 +124,13 @@ eva run \
 ```yaml
 - name: Smoke test tlc CLI
   run: |
+    tlc flow test .tlc/flows/task-create-smoke.yaml happy-path
+    jq -r '.stdout' \
+      .tlc/flows/fixtures/task-create-smoke/happy-path/exec.json \
+      > /tmp/stdout.txt
     eva run \
       --contract contracts/tlc_task_create.yaml \
-      --input artifacts/task-create-smoke.json \
+      --input /tmp/stdout.txt \
       --format json \
       || (echo "::error::Contract violated"; exit 1)
 ```
@@ -132,16 +142,17 @@ eva run \
 * **Hermetic** — no live `tlc` process, no Eva server, no LLM call.
 * **Cheap** — millisecond gate; no API budget.
 * **Drift-detecting** — change the CLI's output format and the contract
-  fails. Update the recording, update the contract, commit both.
+  fails. Update the cassette, update the contract, commit both.
 * **Reusable** — drop the same recipe on any CLI: replace the command in
-  the flow YAML and the field paths in the contract.
+  the flow YAML and the patterns in the contract.
 
 ---
 
 ## Related
 
 * [CLI reference: `eva run --contract`](cli-reference.md#standalone-contract-mode)
-* [Evaluators reference: status_code, exit_code, equals, regex, contains](evaluators-reference.md)
+* [Evaluators reference: regex, contains](evaluators-reference.md)
 * [Architecture: standalone CLI vs gateway](architecture.md)
 * `hop-top/tlc#flow-exec-step` — owns the canonical flow exec step + sample YAML
-* `hop-top/eva#flow-exec-evaluators` — track that introduced these evaluators + the standalone CLI
+* `hop-top/eva#flow-exec-evaluators` — sibling track adding `status_code`,
+  `exit_code`, `equals` for typed-field assertions against step outputs
