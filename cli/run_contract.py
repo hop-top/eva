@@ -72,13 +72,27 @@ class ContractRunReport:
 
 
 def _load_input(input_path: str) -> str:
-    """Load input from file path or stdin (`-`). Returns raw text."""
+    """Load input from file path or stdin (`-`). Returns raw text.
+
+    Raises ValueError if the input is not valid UTF-8 (binary file or wrong
+    encoding) — caught by run_contract_cli and surfaced as EXIT_BAD_INPUT.
+    """
     if input_path == "-":
-        return sys.stdin.read()
+        try:
+            return sys.stdin.read()
+        except UnicodeDecodeError as e:
+            raise ValueError(
+                f"stdin input is not valid UTF-8 text: {e}"
+            ) from e
     path = Path(input_path)
     if not path.exists():
         raise FileNotFoundError(f"Input file not found: {input_path}")
-    return path.read_text()
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as e:
+        raise ValueError(
+            f"input file '{path}' is not valid UTF-8 text: {e}"
+        ) from e
 
 
 def _passed(score: float, mode: str, min_score: float) -> bool:
@@ -184,6 +198,10 @@ def run_contract_cli(
     try:
         response_text = _load_input(input_path)
     except FileNotFoundError as e:
+        print(f"Error: {e}", file=err)
+        return EXIT_BAD_INPUT
+    except ValueError as e:
+        # Raised by _load_input on UnicodeDecodeError (binary input).
         print(f"Error: {e}", file=err)
         return EXIT_BAD_INPUT
     except OSError as e:

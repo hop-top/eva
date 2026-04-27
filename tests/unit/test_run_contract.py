@@ -290,3 +290,64 @@ def test_cli_missing_contract_file_returns_two(tmp_path, capsys):
         quiet=False,
     )
     assert code == EXIT_BAD_INPUT
+
+
+def test_cli_binary_input_file_returns_two(tmp_path, capsys):
+    """Binary --input file must exit EXIT_BAD_INPUT, not crash with traceback."""
+    contract = _write(
+        tmp_path / "c.yaml",
+        """
+        name: x
+        provider: noop
+        evaluators: []
+        """,
+    )
+    binary = tmp_path / "binary.bin"
+    # Bytes that are not valid UTF-8 (lone continuation byte, PNG-ish header).
+    binary.write_bytes(b"\x89PNG\r\n\x1a\n\xff\xfe\xfd\x00\x80\x81\x82")
+
+    code = run_contract_cli(
+        contract=contract, input_path=str(binary), fmt="json", quiet=False
+    )
+    assert code == EXIT_BAD_INPUT
+    captured = capsys.readouterr()
+    # Error must mention the offending file path so users can find it.
+    assert str(binary) in captured.err
+    assert "UTF-8" in captured.err
+
+
+def test_cli_binary_stdin_returns_two(tmp_path, monkeypatch, capsys):
+    """Binary input on stdin must exit EXIT_BAD_INPUT, not crash."""
+    contract = _write(
+        tmp_path / "c.yaml",
+        """
+        name: x
+        provider: noop
+        evaluators: []
+        """,
+    )
+
+    class _BinaryStdin:
+        def read(self):
+            # Simulate the OS-level decode failure that real binary stdin
+            # produces when the parent process pipes non-UTF-8 bytes.
+            raise UnicodeDecodeError("utf-8", b"\xff\xfe", 0, 1, "invalid start byte")
+
+    monkeypatch.setattr("sys.stdin", _BinaryStdin())
+    code = run_contract_cli(
+        contract=contract, input_path="-", fmt="json", quiet=False
+    )
+    assert code == EXIT_BAD_INPUT
+    captured = capsys.readouterr()
+    assert "stdin" in captured.err
+    assert "UTF-8" in captured.err
+
+
+def test_load_input_binary_raises_valueerror(tmp_path):
+    """Unit-level: _load_input wraps UnicodeDecodeError in ValueError."""
+    from cli.run_contract import _load_input
+
+    binary = tmp_path / "binary.bin"
+    binary.write_bytes(b"\xff\xfe\xfd\x00\x80")
+    with pytest.raises(ValueError, match="not valid UTF-8"):
+        _load_input(str(binary))
