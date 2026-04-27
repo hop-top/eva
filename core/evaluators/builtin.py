@@ -3,7 +3,7 @@
 
 Single source of truth used by both the gateway (server/gateway/routes.py)
 and the standalone CLI (cli/run.py). Each factory takes a config dict and
-returns an evaluator instance with a `_run(response: str) -> Score` method.
+returns an evaluator instance with a `run(response: str) -> Score` method.
 
 Adding a new built-in evaluator: register it here. Both call sites pick it
 up automatically.

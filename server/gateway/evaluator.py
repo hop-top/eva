@@ -32,7 +32,7 @@ async def evaluate_response(
             continue
 
         t0 = time.monotonic()
-        score: Score = evaluator._run(response_text)
+        score: Score = evaluator.run(response_text)
         duration_ms = int((time.monotonic() - t0) * 1000)
 
         result = Result(

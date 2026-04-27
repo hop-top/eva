@@ -6,7 +6,7 @@ matches an expected integer or falls within an allowed set.
 
 The evaluator receives the step output as a JSON-encoded string. The
 ``step`` attribute is metadata used by the flow runner to route the
-correct step's output here; ``_run`` itself only inspects the payload.
+correct step's output here; ``run`` itself only inspects the payload.
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ class StatusCodeEvaluator:
     ----------
     step:
         Identifier of the flow step whose output should be evaluated.
-        Stored as metadata for the runner; not used inside ``_run``.
+        Stored as metadata for the runner; not used inside ``run``.
     expected:
         Single integer that must match exactly. Mutually exclusive with
         ``expected_in``.
@@ -59,7 +59,7 @@ class StatusCodeEvaluator:
                 return value
         return None
 
-    def _run(self, response: str) -> Score:
+    def run(self, response: str) -> Score:
         try:
             payload = json.loads(response)
         except json.JSONDecodeError as e:
@@ -88,6 +88,8 @@ class StatusCodeEvaluator:
             value=0.0,
             reason=f"status_code: expected {self.expected}, got {actual}",
         )
+
+    _run = run  # deprecated alias; remove in v0.2.0
 
 
 # Alias — exit_code is the field name in tlc exec step output;
