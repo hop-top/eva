@@ -48,6 +48,9 @@ class Result(BaseModel):
 
     @model_validator(mode="after")
     def compute_passed(self) -> "Result":
+        # NOTE: keep in sync with cli/run_contract.py::_passed
+        # (standalone CLI duplicates this logic to avoid the
+        # eva[server] extras dep). If you change either, update both.
         if self.mode == "binary":
             self.passed = self.score.value == 1.0
         elif self.mode == "threshold":

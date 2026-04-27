@@ -96,6 +96,14 @@ def _load_input(input_path: str) -> str:
 
 
 def _passed(score: float, mode: str, min_score: float) -> bool:
+    """Decide pass/fail per evaluator mode.
+
+    NOTE: keep in sync with core/models.py::Result.compute_passed
+    (the canonical pass-decision used by the gateway via the Result
+    pydantic model). This duplicate exists to avoid pulling pydantic
+    + the eva[server] extras into the standalone CLI. If you change
+    either, update both.
+    """
     if mode == "warn":
         return True
     if mode == "threshold":
