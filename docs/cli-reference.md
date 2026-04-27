@@ -22,23 +22,54 @@ eva init
 
 ## `eva run`
 
-Execute an evaluation suite against a target agent.
+Execute evaluations. Two modes — **dataset** (live agent) and **standalone
+contract** (offline; no agent, no gateway).
 
-### Arguments & Flags:
+### Dataset mode
+
+Loads a dataset of test cases and calls a live agent for each.
+
 | Flag | Description |
 |---|---|
 | `--dataset` | **Required**. Path to the evaluation dataset (YAML or JSONL). |
 | `--target` | Optional. Override the target agent URL. |
 | `--concurrency` | Optional. Number of concurrent test executions. Default: `1`. |
+| `--no-tui` | Optional. Plain-text output for CI. |
 
-### Usage:
 ```bash
 eva run --dataset evals/my_suite.yaml --target http://localhost:8000/chat
 ```
 
+### Standalone contract mode
+
+Evaluates a single response artifact against a contract YAML. No agent call,
+no gateway. Intended for CI smoke and local dev, e.g. validating a recorded
+output from `tlc flow exec`. See [architecture.md](architecture.md#standalone-cli-eva-run---contract---input).
+
+| Flag | Description |
+|---|---|
+| `--contract` | **Required**. Path to the contract YAML. |
+| `--input` | **Required**. Path to the input file, or `-` to read from stdin. |
+| `--format` | Optional. `text` (default in TTY) or `json` (default in CI). |
+| `--quiet` | Optional. Suppress passing-evaluator output (text mode). |
+
+```bash
+# Recorded output → contract gate (CI)
+eva run --contract contracts/my.yaml --input artifacts/response.json --format json
+
+# Pipe from stdin
+echo '{"status": "ok"}' | eva run --contract contracts/my.yaml --input -
+```
+
 ### Exit Codes:
-- `0`: All tests passed according to the contract.
-- `1`: One or more tests failed.
+- `0`: All evaluators passed.
+- `1`: One or more evaluators failed (report on stderr).
+- `2`: Bad input: missing/malformed contract or input, or invalid flag combo
+  (e.g. mixing `--contract` with `--dataset`).
+
+### Output sinks (standalone mode):
+- On **pass**: report goes to **stdout** (pipe-safe).
+- On **fail**: report goes to **stderr**; stdout stays empty.
 
 ---
 

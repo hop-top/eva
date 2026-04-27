@@ -86,8 +86,71 @@ evaluators:
 
 ## `status_code`
 
-*(Planned for Phase 1 Integration)*
-Validates that the HTTP response code from the agent matches a set of expected values.
+Validates that an HTTP/exec status code matches an expected value (or
+membership in an expected set). Designed for the `tlc flow exec` integration
+where the input is the JSON output of an exec step containing a numeric
+`status_code` (or `exit_code`) field.
+
+### Configuration Properties:
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `expected` | `int` or `int[]` | **Yes** | Expected code, or list of acceptable codes. |
+| `field` | `string` | No | JSON path to read the code from (default: `status_code`). |
+
+### Example Contract Usage:
+```yaml
+evaluators:
+  - name: status_code
+    expected: 0          # exec step succeeded
+  - name: status_code
+    expected: [200, 201] # HTTP success
+    field: response.status
+```
+
+See [smoke-testing-cli-with-flow-exec.md](smoke-testing-cli-with-flow-exec.md)
+for a full worked example using `tlc flow exec` recordings.
+
+---
+
+## `exit_code`
+
+Alias for `status_code`. Reads `exit_code` from the input by default — useful
+when the contract is documenting CLI / subprocess semantics rather than HTTP.
+
+```yaml
+evaluators:
+  - name: exit_code
+    expected: 0
+```
+
+`exit_code` and `status_code` share the same factory; `exit_code` exists for
+readability when the caller is a subprocess runner (xrr cassettes,
+`tlc flow exec`, hand-rolled wrappers). Either name accepts a `field`
+override.
+
+---
+
+## `equals`
+
+Strict equality match against an expected value. Works on strings, numbers,
+booleans, and (after JSON decode) on nested objects/arrays.
+
+### Configuration Properties:
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `expected` | any | **Yes** | Value to compare against. |
+| `field` | `string` | No | JSON path to extract before comparing (default: whole input). |
+| `decode_json` | `bool` | No | Parse input as JSON before comparing. Default: `false`. |
+
+### Example Contract Usage:
+```yaml
+evaluators:
+  - name: equals
+    expected: "ok"
+  - name: equals
+    expected: {"status": "ready", "version": 2}
+    decode_json: true
+```
 
 ---
 
