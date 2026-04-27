@@ -189,3 +189,29 @@ def test_cli_run_dataset_mode_still_requires_dataset():
     result = run_eva("run")
     assert result.returncode == 2
     assert "--dataset" in result.stdout or "--dataset" in result.stderr
+
+
+def test_cli_run_contract_invalid_format_exits_two(tmp_path):
+    """`--format` only accepts 'json' or 'text'; bad values exit 2 (T-0265)."""
+    contract = _write(
+        tmp_path / "c.yaml",
+        """
+        name: x
+        provider: noop
+        evaluators: []
+        """,
+    )
+    inp = _write(tmp_path / "in.txt", "x")
+
+    result = run_eva(
+        "run",
+        "--contract",
+        str(contract),
+        "--input",
+        str(inp),
+        "--format",
+        "invalid",
+    )
+    assert result.returncode == 2
+    combined = (result.stdout + result.stderr).lower()
+    assert "format" in combined
