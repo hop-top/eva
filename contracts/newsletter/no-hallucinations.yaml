@@ -1,0 +1,11 @@
+# Newsletter pack — no-hallucinations gate (T-0201, US-037).
+# v0.1 weakened: every claim has a citation reference at all (i.e. the draft
+# contains at least one [ref:<id>] marker). Strict variant — every marker
+# resolves to a ctxt object_id in metadata.source_object_ids — is deferred
+# (requires a Tier-3 plugin evaluator + ctxt lookup).
+name: newsletter-no-hallucinations-0.1
+provider: newsletter-writer
+evaluators:
+  - name: regex
+    mode: binary
+    pattern: '\[ref:[a-zA-Z0-9_-]+\]'

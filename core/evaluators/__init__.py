@@ -2,9 +2,11 @@
 from core.evaluators.contains import ContainsEvaluator
 from core.evaluators.regex_match import RegexEvaluator
 from core.evaluators.json_schema_valid import JsonSchemaEvaluator
+from core.evaluators.last_paragraph_regex import LastParagraphRegexEvaluator
 from core.evaluators.no_pii import NoPiiEvaluator
 from core.evaluators.status_code import StatusCodeEvaluator, ExitCodeEvaluator
 from core.evaluators.equals import EqualsEvaluator
+from core.evaluators.word_count import WordCountEvaluator
 from core.evaluators.llm_judge import (
     RelevanceEvaluator,
     HallucinationEvaluator,
@@ -21,10 +23,12 @@ EVALUATOR_REGISTRY = {
     "contains": ContainsEvaluator,
     "regex": RegexEvaluator,
     "json_schema_valid": JsonSchemaEvaluator,
+    "last_paragraph_regex": LastParagraphRegexEvaluator,
     "no_pii": NoPiiEvaluator,
     "status_code": StatusCodeEvaluator,
     "exit_code": ExitCodeEvaluator,  # alias for status_code
     "equals": EqualsEvaluator,
+    "word_count": WordCountEvaluator,
     "relevance": RelevanceEvaluator,
     "hallucination": HallucinationEvaluator,
     "tone": ToneEvaluator,
@@ -36,10 +40,12 @@ __all__ = [
     "ContainsEvaluator",
     "RegexEvaluator",
     "JsonSchemaEvaluator",
+    "LastParagraphRegexEvaluator",
     "NoPiiEvaluator",
     "StatusCodeEvaluator",
     "ExitCodeEvaluator",
     "EqualsEvaluator",
+    "WordCountEvaluator",
     "RelevanceEvaluator",
     "HallucinationEvaluator",
     "ToneEvaluator",

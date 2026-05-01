@@ -15,8 +15,10 @@ from typing import Any, Callable
 
 from core.evaluators.contains import ContainsEvaluator
 from core.evaluators.json_schema_valid import JsonSchemaEvaluator
+from core.evaluators.last_paragraph_regex import LastParagraphRegexEvaluator
 from core.evaluators.no_pii import NoPiiEvaluator
 from core.evaluators.regex_match import RegexEvaluator
+from core.evaluators.word_count import WordCountEvaluator
 
 
 EvaluatorFactory = Callable[[dict], Any]
@@ -29,5 +31,13 @@ BUILTIN_EVALUATOR_FACTORIES: dict[str, EvaluatorFactory] = {
     ),
     "regex": lambda cfg: RegexEvaluator(pattern=cfg.get("pattern", ".*")),
     "json_schema_valid": lambda cfg: JsonSchemaEvaluator(schema=cfg.get("schema", {})),
+    "last_paragraph_regex": lambda cfg: LastParagraphRegexEvaluator(
+        pattern=cfg.get("pattern", ".*"),
+        case_sensitive=cfg.get("case_sensitive", True),
+    ),
     "no_pii": lambda cfg: NoPiiEvaluator(),
+    "word_count": lambda cfg: WordCountEvaluator(
+        max=cfg.get("max"),
+        min=cfg.get("min"),
+    ),
 }

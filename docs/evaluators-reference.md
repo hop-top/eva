@@ -159,6 +159,53 @@ evaluators:
 
 ---
 
+## `word_count`
+
+Counts whitespace-separated tokens in the response and gates on `min` /
+`max`. Used by the newsletter pack to cap drafts at 700 words.
+
+### Configuration Properties:
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `max` | `int` | No | Hard ceiling — fails if word count exceeds this. |
+| `min` | `int` | No | Hard floor — fails if word count is below this. |
+
+At least one of `max` / `min` should be set; both unset = always passes.
+
+### Example Contract Usage:
+```yaml
+evaluators:
+  - name: word_count
+    mode: binary
+    max: 700
+```
+
+---
+
+## `last_paragraph_regex`
+
+Like `regex`, but matches only against the LAST non-empty paragraph
+(blank-line separated). Used by the newsletter pack to enforce a CTA verb
+in the closing paragraph without an early-paragraph match satisfying the
+gate.
+
+### Configuration Properties:
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `pattern` | `string` | **Yes** | Regular expression to match against the last paragraph. |
+| `case_sensitive` | `boolean` | No | Default `true`. |
+
+### Example Contract Usage:
+```yaml
+evaluators:
+  - name: last_paragraph_regex
+    mode: binary
+    case_sensitive: false
+    pattern: '\b(reply|subscribe|share|join)\b'
+```
+
+---
+
 ## `latency`
 
 *(Planned for Phase 1 Integration)*

@@ -1,0 +1,8 @@
+# Newsletter pack — word-count gate (T-0201, US-037).
+# v0.1: hard fail above 700 words. Threshold tunable via the `max` config.
+name: newsletter-word-count-0.1
+provider: newsletter-writer
+evaluators:
+  - name: word_count
+    mode: binary
+    max: 700

@@ -1,9 +1,9 @@
 # US-037 — Newsletter Contracts Pack
 
 **ID:** EVA-NEW-NEWSLETTER
-**Status:** paper
+**Status:** v0.1 shipped (Tier-1) — strict variants paper
 **Author:** jadb
-**Task:** T-0110
+**Task:** T-0110, T-0201
 **Persona:** [Alex — AI Engineer](../personas.md) ·
 [Solo Developer](../../../../../.docs/personas/individuals/solo-developer.md)
 
@@ -62,6 +62,31 @@ Acceptance: pass on "Reply with your take."; fail on descriptive-only final →
 
 `eva pack register newsletter@0.1`; combined gate via
 `eva run --pack newsletter@0.1 --input draft.json` returns aggregate pass/fail.
+
+**Status (T-0201):** `eva pack` CLI surface still pending; v0.1 ships the four
+contracts at `contracts/newsletter/` plus a `pack.yaml` manifest. Run each
+file individually via `eva run --contract <file> --input draft.txt` until the
+pack subcommand lands.
+
+## Implemented v0.1 (T-0201)
+
+- `newsletter-word-count-0.1` — `word_count` evaluator (max=700).
+- `newsletter-no-hallucinations-0.1` — `regex` for `[ref:<id>]` marker
+  presence (weakened from "every claim resolves to a ctxt object_id").
+- `newsletter-style-0.1` — `regex` for tone-token allowlist (weakened from
+  cosine-similarity vs. embedding).
+- `newsletter-cta-presence-0.1` — new `last_paragraph_regex` evaluator.
+
+Two new built-ins added to `BUILTIN_EVALUATOR_FACTORIES`: `word_count` and
+`last_paragraph_regex`. Both Tier-1 deterministic.
+
+## Deferred (strict variants — follow-up tasks)
+
+- `style_match` Tier-3 plugin: cosine similarity vs. tone-profile embedding.
+- `cite_coverage` Tier-3 plugin: `[ref:<id>]` markers must resolve to
+  `metadata.source_object_ids` (ctxt object_id binding).
+- LLM-judge fallback for unsourced factual claims via `hallucination`.
+- `eva pack register / eva run --pack` CLI surface.
 
 ## Tests
 

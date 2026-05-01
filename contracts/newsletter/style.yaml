@@ -1,0 +1,15 @@
+# Newsletter pack — style gate (T-0201, US-037).
+# v0.1 weakened: regex match against tone exemplar tokens. Strict variant —
+# cosine similarity vs. tone-profile embedding via Tier-3 `style_match`
+# plugin — is deferred (requires embedding model + reference corpus
+# loader).
+#
+# Tokens chosen to match the Content Director style guide's preferred
+# constructions (greeting, audience nod, signature). Override `pattern`
+# to fit your house style.
+name: newsletter-style-0.1
+provider: newsletter-writer
+evaluators:
+  - name: regex
+    mode: binary
+    pattern: '(?i)\b(hey|hi|hello|happy|cheers|catch you|until next)\b'
