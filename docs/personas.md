@@ -1,7 +1,9 @@
 # Eva — Personas
 
-Eva reuses or extends the shared hop-tool personas in
-`/Users/jadb/.w/ideacrafterslabs/.docs/personas`.
+Eva reuses or extends the shared hop-top personas, which are maintained in a
+separate location outside this repository. Each Eva persona below names its
+shared base by its repo-relative path (e.g. `individuals/solo-developer.md`)
+so reviewers with access to the shared persona library can cross-reference.
 
 These Eva personas are product-specific adaptations of those shared bases, not a separate taxonomy.
 
