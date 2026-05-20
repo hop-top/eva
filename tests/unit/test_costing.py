@@ -14,10 +14,25 @@ from core.costing import PRICING_TABLE, estimate_cost
 
 class TestOpenAI:
     def test_gpt4o_mini(self):
-        # prompt: 1000 tokens * $0.0001/1k = $0.0001
+        # prompt: 1000 tokens * $0.00015/1k = $0.00015
         # completion: 500 tokens * $0.0006/1k = $0.0003
         cost = estimate_cost("openai", "gpt-4o-mini", 1000, 500)
-        assert cost == pytest.approx(0.0004)
+        assert cost == pytest.approx(0.00045)
+
+    def test_gpt4o_mini_prompt_price_matches_openai_pricing_page(self):
+        """Regression: PRICING_TABLE entry must reflect $0.150 per 1M input tokens.
+
+        OpenAI publishes gpt-4o-mini at $0.150 per 1M input tokens. Converted
+        to per-1k tokens (our table's unit), that is $0.00015. A previous
+        revision had this entry at $0.0001 (= $0.10/1k = $100/1M), wildly
+        over-pricing inputs. Cross-check with gpt-4o, which sits at $2.50/1M
+        = $0.0025/1k and matches OpenAI's published rate.
+        """
+        from core.costing import PRICING_TABLE
+
+        prompt_rate, completion_rate = PRICING_TABLE["openai"]["gpt-4o-mini"]
+        assert prompt_rate == pytest.approx(0.00015)
+        assert completion_rate == pytest.approx(0.0006)
 
     def test_gpt4o(self):
         # prompt: 2000 * 0.0025/1k = 0.005
@@ -147,7 +162,7 @@ def test_zero_prompt_tokens():
 
 def test_zero_completion_tokens():
     cost = estimate_cost("openai", "gpt-4o-mini", 1000, 0)
-    expected = (1000 / 1000.0) * 0.0001
+    expected = (1000 / 1000.0) * 0.00015
     assert cost == pytest.approx(expected)
 
 

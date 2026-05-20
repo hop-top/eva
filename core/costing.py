@@ -15,7 +15,7 @@ from __future__ import annotations
 PRICING_TABLE: dict[str, dict[str, tuple[float, float]]] = {
     "openai": {
         "gpt-4o":           (0.0025, 0.0100),
-        "gpt-4o-mini":      (0.0001, 0.0006),  # $0.150/$0.600 per 1M → /1k
+        "gpt-4o-mini":      (0.00015, 0.0006),  # $0.150/$0.600 per 1M → /1k
         "gpt-4-turbo":      (0.0100, 0.0300),
         "gpt-3.5-turbo":    (0.0005, 0.0015),
     },
