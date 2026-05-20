@@ -115,17 +115,17 @@ def contract_diff(
 
 @app.command()
 def run(
-    dataset: Path = typer.Option(None, "--dataset", help="Path to eval dataset (YAML or JSONL)"),
-    target: str = typer.Option(None, "--target", help="Override target agent URL"),
+    dataset: Path | None = typer.Option(None, "--dataset", help="Path to eval dataset (YAML or JSONL)"),
+    target: str | None = typer.Option(None, "--target", help="Override target agent URL"),
     concurrency: int = typer.Option(1, "--concurrency", help="Number of concurrent tests"),
     no_tui: bool = typer.Option(False, "--no-tui", help="Disable rich TUI (for CI)"),
-    contract: Path = typer.Option(
+    contract: Path | None = typer.Option(
         None, "--contract", help="Standalone mode: contract YAML to evaluate against --input"
     ),
-    input_path: str = typer.Option(
+    input_path: str | None = typer.Option(
         None, "--input", help="Standalone mode: input file (or '-' for stdin)"
     ),
-    fmt: str = typer.Option(
+    fmt: str | None = typer.Option(
         None, "--format", help="Standalone mode output: 'text' (default) or 'json' (CI default)"
     ),
     quiet: bool = typer.Option(False, "--quiet", help="Standalone mode: suppress passing evaluator output"),
@@ -357,11 +357,11 @@ app.add_typer(annotate_app, name="annotate")
 @annotate_app.command("add")
 def annotate_add(
     invocation: str = typer.Option(..., "--invocation", help="Invocation ID to annotate."),
-    label: str = typer.Option(None, "--label", help="Human label (e.g. 'correct', 'wrong')."),
-    score: float = typer.Option(None, "--score", help="Human quality score (0.0–1.0)."),
-    notes: str = typer.Option(None, "--notes", help="Free-text notes."),
+    label: str | None = typer.Option(None, "--label", help="Human label (e.g. 'correct', 'wrong')."),
+    score: float | None = typer.Option(None, "--score", help="Human quality score (0.0–1.0)."),
+    notes: str | None = typer.Option(None, "--notes", help="Free-text notes."),
     reviewer: str = typer.Option("human", "--reviewer", help="Reviewer identifier."),
-    db: str = typer.Option(None, "--db", help="Path to SQLite DB (overrides eva.yaml)."),
+    db: str | None = typer.Option(None, "--db", help="Path to SQLite DB (overrides eva.yaml)."),
 ) -> None:
     """Add a human annotation to an invocation."""
     import uuid
@@ -391,7 +391,7 @@ def annotate_add(
 @annotate_app.command("list")
 def annotate_list(
     invocation: str = typer.Option(..., "--invocation", help="Invocation ID."),
-    db: str = typer.Option(None, "--db", help="Path to SQLite DB (overrides eva.yaml)."),
+    db: str | None = typer.Option(None, "--db", help="Path to SQLite DB (overrides eva.yaml)."),
 ) -> None:
     """List annotations for an invocation."""
     from rich.table import Table
@@ -434,7 +434,7 @@ def review_queue_cmd(
     failed_only: bool = typer.Option(
         False, "--failed-only", help="Show only invocations with failed evaluators."
     ),
-    db: str = typer.Option(None, "--db", help="Path to SQLite DB (overrides eva.yaml)."),
+    db: str | None = typer.Option(None, "--db", help="Path to SQLite DB (overrides eva.yaml)."),
 ) -> None:
     """Show invocations pending human review."""
     from rich.table import Table
@@ -528,7 +528,7 @@ def drift_report(
     threshold: float = typer.Option(
         0.1, help="Score delta that triggers DOWN/UP trend."
     ),
-    db: str = typer.Option(None, help="Path to SQLite DB (overrides eva.yaml)."),
+    db: str | None = typer.Option(None, help="Path to SQLite DB (overrides eva.yaml)."),
 ) -> None:
     """Show evaluator score trends across recent runs for a dataset+target pair."""
     import asyncio

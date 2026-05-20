@@ -54,8 +54,12 @@ class Runner:
         self.call_agent = call_agent
         self.min_score = min_score
         self.storage = storage  # optional SqliteStorage; None = no persistence
-        # event_sink collects ToolCallEvents during a run; drained+persisted on
-        # completion.  Defaults to NullEventSink so existing callers are unaffected.
+        # NOTE: a single shared sink across concurrent invocations leaks tool
+        # events between in-flight tests and lets one drain() clear another
+        # test's buffer. The runner now allocates a fresh EventSink per
+        # invocation inside run_one(); this attribute is retained only for
+        # backwards-compat callers that read it directly. It is NOT consulted
+        # during per-test evaluation or persistence.
         self.event_sink: EventSink | NullEventSink = event_sink or NullEventSink()
 
         # Backwards compat: old callers passed concurrency as plain int
@@ -89,14 +93,21 @@ class Runner:
                 req_artifact_id = str(uuid.uuid4())
                 resp_artifact_id = str(uuid.uuid4())
 
+                # Per-invocation EventSink: prevents tool-event interleaving
+                # and drain() races when multiple tests run concurrently under
+                # asyncio.gather. Each test gets its own buffer; nothing is
+                # shared across the task set.
+                invocation_sink = EventSink()
+
                 t0 = datetime.utcnow()
-                # Provide event_sink so plugins/wrappers can emit tool events via:
+                # Provide the per-invocation sink so plugins/wrappers can emit
+                # tool events via:
                 #   context["event_sink"].emit_tool_call(tool_name, args, ...)
                 run_ctx: dict[str, Any] = {
                     "invocation_id": invocation_id,
                     "run_id": run_id,
                     "test_id": test.id,
-                    "event_sink": self.event_sink,
+                    "event_sink": invocation_sink,
                     "retrieval_context": test.retrieval_context,
                     "expected_output": test.expected_output,
                     "planned_steps": test.planned_steps,
@@ -108,7 +119,9 @@ class Runner:
                     context={
                         "test": test.model_dump(),
                         **run_ctx,
-                        "tool_events": run_ctx.get("tool_events", list(self.event_sink.events)),
+                        "tool_events": run_ctx.get(
+                            "tool_events", list(invocation_sink.events)
+                        ),
                     },
                 )
                 t1 = datetime.utcnow()
@@ -193,8 +206,10 @@ class Runner:
                     self.storage.save_invocation(
                         invocation, ev_results, [req_artifact, resp_artifact]
                     )
-                    # Drain event sink and persist ToolCall rows linked to this invocation
-                    tool_events = self.event_sink.drain()
+                    # Drain the per-invocation sink and persist ToolCall rows
+                    # linked to this invocation. Drain isolation is guaranteed
+                    # because each task owns its own sink instance.
+                    tool_events = invocation_sink.drain()
                     if tool_events:
                         self.storage.save_tool_calls(invocation_id, tool_events)
 
