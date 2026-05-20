@@ -25,7 +25,7 @@ class LiteLLMAdapter:
         self.kwargs = kwargs
 
     async def complete(
-        self, messages: list[dict[str, str]], **kwargs: Any
+        self, messages: list[dict[str, Any]], **kwargs: Any
     ) -> LLMCompletion:
         import litellm  # deferred — only required when adapter is used
 
