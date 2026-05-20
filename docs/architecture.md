@@ -61,7 +61,7 @@ combined with `--dataset`/`--target`.
 3. For each evaluator in contract.evaluators:
      factory = BUILTIN_EVALUATOR_FACTORIES[name]
      evaluator = factory(spec)            # spec = full evaluator dict
-     score = evaluator._run(input_text)
+     score = evaluator.run(input_text)
      passed = mode-aware (binary | threshold | warn)
 4. Aggregate ContractRunReport
 5. Emit text (humans) or JSON (CI) and exit 0 / 1 / 2
