@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "python",
+  "include-component-in-tag": true,
+  "separator": "/",
+  "tag-separator": "/",
+  "include-v-in-tag": true,
+  "packages": {
+    ".": {
+      "component": "eva",
+      "package-name": "hop-top-eva",
+      "release-type": "python",
+      "prerelease": true,
+      "prerelease-type": "alpha.0",
+      "versioning": "prerelease",
+      "bump-minor-pre-major": true
+    }
+  }
+}

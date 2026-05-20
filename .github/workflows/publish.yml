@@ -1,39 +1,31 @@
-name: Publish to PyPI
+name: publish
 
 on:
   push:
-    tags:
-      - 'v*'
+    tags: ['*/v*']
 
 jobs:
   publish:
-    name: Build and publish
-    runs-on: ubuntu-latest
-    environment: pypi
     permissions:
-      id-token: write  # OIDC trusted publisher
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Install dependencies
-        run: uv pip install --system twine
-
-      - name: Build
-        run: uv build
-
-      - name: Check dist
-        run: twine check dist/*
-
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+      contents: read
+      id-token: write  # kept for forward-compat if/when OIDC works again
+    uses: hop-top/.github/.github/workflows/publish-on-tag.yml@v0
+    secrets:
+      PYPI_REGISTRY_TOKEN: ${{ secrets.PYPI_REGISTRY_TOKEN }}
+    with:
+      homepage: https://github.com/hop-top/eva
+      # Single-language Python repo — no mirror. The `eva` ecosystem entry
+      # uses `ecosystem: py` (picks the PyPI publish job) and omits any
+      # `mirror:` field so the mirror-subtree job is skipped entirely.
+      #
+      # pypi-auth: token (matches poly-uri/poly-kit/poly-xrr pattern) —
+      # OIDC trusted publishing has been returning `invalid-publisher`
+      # despite repeatedly correct pending-publisher claims (see
+      # hop-top/.github#10). Switch back to oidc once the PyPI side is
+      # debugged.
+      ecosystems: |
+        eva:
+          dir: .
+          ecosystem: py
+          package: hop-top-eva
+          pypi-auth: token
