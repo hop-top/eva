@@ -8,7 +8,7 @@
   "packages": {
     ".": {
       "component": "eva",
-      "package-name": "eva",
+      "package-name": "hop-top-eva",
       "release-type": "python",
       "prerelease": true,
       "prerelease-type": "alpha.0",

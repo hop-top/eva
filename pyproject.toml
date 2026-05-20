@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "eva"
+name = "hop-top-eva"
 version = "0.1.0a1"
 description = "Eva — behavioral contract enforcement & validation for AI agents"
 readme = "README.md"
