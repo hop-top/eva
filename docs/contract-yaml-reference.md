@@ -72,3 +72,59 @@ Each item in the `evaluators` list is a reference to a built-in or custom evalua
 2.  **Specific Evaluators**: Use specific evaluators like `json_schema_valid` if your agent is expected to return structured data.
 3.  **Actionable Hints**: Write `retry_policy.hint` as if you were coaching the agent. Instead of "Fix it," use "The response must contain a valid refund ID in the 'id' field."
 4.  **Use `warn` for Monitoring**: For new or experimental evaluators, use `mode: warn` to collect data without gating your pipeline.
+
+---
+
+## Contracts for exec-step output (`tlc flow exec`)
+
+Contracts can validate any text/JSON artifact — not just live agent
+responses. A common pattern is gating CI smoke tests on the recorded output
+of a CLI step (see [tlc flow exec](https://github.com/hop-top/tlc) and the
+[smoke-testing cookbook](smoke-testing-cli-with-flow-exec.md)).
+
+The input to the contract is the exec step's structured output, typically
+shaped like:
+
+```json
+{
+  "exit_code": 0,
+  "stdout": "Created task T-0734\nStatus: TODO\n",
+  "stderr": ""
+}
+```
+
+Example contract for that artifact:
+
+```yaml
+name: tlc_task_create_smoke
+provider: tlc
+evaluators:
+  - name: exit_code
+    expected: 0
+  - name: regex
+    pattern: 'Created task T-[0-9]{4}'
+    field: stdout
+  - name: contains
+    substring: 'TODO'
+    field: stdout
+```
+
+> **Note:** `field:` routing is honored by the `status_code` (alias
+> `exit_code`) and `equals` evaluators only. The `regex` and `contains`
+> evaluators always evaluate the full input string, so the `field: stdout`
+> keys above are ignored and the patterns match anywhere in the JSON
+> payload. If you need to scope `regex` / `contains` to a single field,
+> pre-extract that field before invoking `eva run`, e.g.:
+>
+> ```bash
+> jq -r '.stdout' artifacts/output.json | eva run --contract c.yaml --input -
+> ```
+
+Run the contract against a recorded output via the standalone CLI:
+
+```bash
+eva run --contract contracts/tlc_task_create.yaml --input artifacts/output.json
+```
+
+This validates the recording without booting an agent, an Eva server, or the
+upstream CLI under test — making the gate fast, hermetic, and CI-friendly.

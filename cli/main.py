@@ -1,4 +1,5 @@
 # cli/main.py
+import sys
 from importlib.metadata import version as _pkg_version, PackageNotFoundError
 from pathlib import Path
 import typer
@@ -114,12 +115,63 @@ def contract_diff(
 
 @app.command()
 def run(
-    dataset: Path = typer.Option(..., "--dataset", help="Path to eval dataset (YAML or JSONL)"),
-    target: str = typer.Option(None, "--target", help="Override target agent URL"),
+    dataset: Path | None = typer.Option(None, "--dataset", help="Path to eval dataset (YAML or JSONL)"),
+    target: str | None = typer.Option(None, "--target", help="Override target agent URL"),
     concurrency: int = typer.Option(1, "--concurrency", help="Number of concurrent tests"),
     no_tui: bool = typer.Option(False, "--no-tui", help="Disable rich TUI (for CI)"),
+    contract: Path | None = typer.Option(
+        None, "--contract", help="Standalone mode: contract YAML to evaluate against --input"
+    ),
+    input_path: str | None = typer.Option(
+        None, "--input", help="Standalone mode: input file (or '-' for stdin)"
+    ),
+    fmt: str | None = typer.Option(
+        None, "--format", help="Standalone mode output: 'text' (default) or 'json' (CI default)"
+    ),
+    quiet: bool = typer.Option(False, "--quiet", help="Standalone mode: suppress passing evaluator output"),
 ):
-    """Run evaluations against a target agent."""
+    """Run evaluations.
+
+    Two modes:
+      * Dataset mode (default): `eva run --dataset suite.yaml --target <url>`
+        — calls a live agent for each test case.
+      * Standalone contract mode: `eva run --contract c.yaml --input data.json`
+        — evaluates a single response artifact against a contract. No agent
+        call, no gateway. Intended for CI smoke and local dev.
+    """
+    # Standalone contract mode dispatch
+    if contract is not None or input_path is not None:
+        if contract is None or input_path is None:
+            console.print(
+                "[red]Error:[/red] --contract and --input must be used together"
+            )
+            raise typer.Exit(2)
+        if dataset is not None or target is not None:
+            console.print(
+                "[red]Error:[/red] --contract/--input cannot be combined with --dataset/--target"
+            )
+            raise typer.Exit(2)
+        from cli.run_contract import run_contract_cli
+
+        chosen_fmt = fmt or ("json" if not sys.stdout.isatty() else "text")
+        if chosen_fmt not in ("json", "text"):
+            console.print("[red]Error:[/red] --format must be 'json' or 'text'")
+            raise typer.Exit(2)
+        code = run_contract_cli(
+            contract=contract,
+            input_path=input_path,
+            fmt=chosen_fmt,
+            quiet=quiet,
+        )
+        raise typer.Exit(code)
+
+    if dataset is None:
+        console.print(
+            "[red]Error:[/red] --dataset is required (dataset mode) "
+            "or use --contract/--input for standalone mode"
+        )
+        raise typer.Exit(2)
+
     import asyncio
     import httpx
     from core.dataset import load_dataset
@@ -298,6 +350,172 @@ def serve(
     )
 
 
+annotate_app = typer.Typer(help="Annotation commands.")
+app.add_typer(annotate_app, name="annotate")
+
+
+@annotate_app.command("add")
+def annotate_add(
+    invocation: str = typer.Option(..., "--invocation", help="Invocation ID to annotate."),
+    label: str | None = typer.Option(None, "--label", help="Human label (e.g. 'correct', 'wrong')."),
+    score: float | None = typer.Option(None, "--score", help="Human quality score (0.0–1.0)."),
+    notes: str | None = typer.Option(None, "--notes", help="Free-text notes."),
+    reviewer: str = typer.Option("human", "--reviewer", help="Reviewer identifier."),
+    db: str | None = typer.Option(None, "--db", help="Path to SQLite DB (overrides eva.yaml)."),
+) -> None:
+    """Add a human annotation to an invocation."""
+    import uuid
+    from datetime import datetime, timezone
+    from core.models import Annotation
+    from core.storage import SqliteStorage
+
+    db_url = f"sqlite:///{db}" if db else "sqlite:///.eva/state.db"
+    storage = SqliteStorage(db_url=db_url)
+
+    annotation = Annotation(
+        annotation_id=str(uuid.uuid4()),
+        invocation_id=invocation,
+        reviewer=reviewer,
+        label=label,
+        score=score,
+        notes=notes,
+        created_at=datetime.now(tz=timezone.utc),
+    )
+    storage.save_annotation(annotation)
+    console.print(
+        f"[green]Annotation saved[/green] [dim]{annotation.annotation_id}[/dim]"
+        f" → invocation [bold]{invocation}[/bold]"
+    )
+
+
+@annotate_app.command("list")
+def annotate_list(
+    invocation: str = typer.Option(..., "--invocation", help="Invocation ID."),
+    db: str | None = typer.Option(None, "--db", help="Path to SQLite DB (overrides eva.yaml)."),
+) -> None:
+    """List annotations for an invocation."""
+    from rich.table import Table
+    from core.storage import SqliteStorage
+
+    db_url = f"sqlite:///{db}" if db else "sqlite:///.eva/state.db"
+    storage = SqliteStorage(db_url=db_url)
+
+    annotations = storage.list_annotations(invocation)
+    if not annotations:
+        console.print(f"[yellow]No annotations for invocation {invocation}[/yellow]")
+        return
+
+    table = Table(title=f"Annotations — {invocation}")
+    table.add_column("ID", style="dim")
+    table.add_column("Reviewer")
+    table.add_column("Label")
+    table.add_column("Score", justify="right")
+    table.add_column("Notes")
+    table.add_column("Created")
+
+    for ann in annotations:
+        table.add_row(
+            ann.annotation_id[:8] + "…",
+            ann.reviewer,
+            ann.label or "—",
+            f"{ann.score:.2f}" if ann.score is not None else "—",
+            ann.notes or "—",
+            ann.created_at.strftime("%Y-%m-%d %H:%M"),
+        )
+    console.print(table)
+
+
+review_app = typer.Typer(help="Human review commands.")
+app.add_typer(review_app, name="review")
+
+
+@review_app.command("queue")
+def review_queue_cmd(
+    failed_only: bool = typer.Option(
+        False, "--failed-only", help="Show only invocations with failed evaluators."
+    ),
+    db: str | None = typer.Option(None, "--db", help="Path to SQLite DB (overrides eva.yaml)."),
+) -> None:
+    """Show invocations pending human review."""
+    from rich.table import Table
+    from core.storage import SqliteStorage
+    from core.query import review_queue
+
+    db_url = f"sqlite:///{db}" if db else "sqlite:///.eva/state.db"
+    storage = SqliteStorage(db_url=db_url)
+
+    items = review_queue(storage, failed_only=failed_only)
+    if not items:
+        console.print("[green]Review queue is empty.[/green]")
+        return
+
+    table = Table(title="Review Queue")
+    table.add_column("Invocation", style="cyan")
+    table.add_column("Status")
+    table.add_column("Target")
+    table.add_column("Evaluator Scores")
+    table.add_column("Human Label")
+    table.add_column("Flags")
+
+    for item in items:
+        inv = item["invocation"]
+        er_list = item["evaluator_results"]
+        ann_list = item["annotations"]
+        has_failure = item["has_failure"]
+        needs_review = item["needs_review"]
+
+        # Evaluator scores summary: "name: 0.75 (pass)" per result
+        ev_parts = []
+        for er in er_list:
+            state = "pass" if er.passed else "fail"
+            score_str = f"{er.score_value:.2f}" if er.score_value is not None else "—"
+            ev_parts.append(f"{er.evaluator}: {score_str} ({state})")
+        ev_summary = "; ".join(ev_parts) if ev_parts else "—"
+
+        # Human label from most recent annotation
+        human_label = "—"
+        if ann_list:
+            latest = sorted(ann_list, key=lambda a: a.created_at)[-1]
+            parts = []
+            if latest.label:
+                parts.append(latest.label)
+            if latest.score is not None:
+                parts.append(f"score={latest.score:.2f}")
+            human_label = " ".join(parts) or "—"
+
+        flags = []
+        if has_failure:
+            flags.append("[red]FAIL[/red]")
+        if needs_review:
+            flags.append("[yellow]UNREVIEWED[/yellow]")
+
+        table.add_row(
+            inv.invocation_id[:12] + "…",
+            inv.status,
+            inv.target[:30] + ("…" if len(inv.target) > 30 else ""),
+            ev_summary,
+            human_label,
+            " ".join(flags) if flags else "[green]ok[/green]",
+        )
+
+    console.print(table)
+    console.print(f"\n[dim]{len(items)} item(s) in queue[/dim]")
+
+
+from cli.observe import (
+    runs_app,
+    invocations_app,
+    compare_app,
+    failures_app,
+    usage_app,
+)
+
+app.add_typer(runs_app, name="runs")
+app.add_typer(invocations_app, name="invocations")
+app.add_typer(compare_app, name="compare")
+app.add_typer(failures_app, name="failures")
+app.add_typer(usage_app, name="usage")
+
 drift_app = typer.Typer(help="Drift detection commands.")
 app.add_typer(drift_app, name="drift")
 
@@ -310,7 +528,7 @@ def drift_report(
     threshold: float = typer.Option(
         0.1, help="Score delta that triggers DOWN/UP trend."
     ),
-    db: str = typer.Option(None, help="Path to SQLite DB (overrides eva.yaml)."),
+    db: str | None = typer.Option(None, help="Path to SQLite DB (overrides eva.yaml)."),
 ) -> None:
     """Show evaluator score trends across recent runs for a dataset+target pair."""
     import asyncio

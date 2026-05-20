@@ -1,0 +1,24 @@
+# Newsletter contracts pack manifest (T-0201, US-037).
+#
+# `eva pack` is not yet implemented at the CLI surface; this manifest is the
+# canonical list of contracts that compose the newsletter gate today. Run
+# them individually via `eva run --contract <file> --input draft.txt` until
+# `eva pack register` lands. Showcase scenario 4a invokes all four in order.
+#
+# Strict-mode contracts (Tier-3 plugin evaluators) tracked separately —
+# see follow-up tlc tasks linked from US-037.
+name: newsletter
+version: 0.1
+description: |
+  Newsletter quality-gate pack: word-count + no-hallucinations + style +
+  cta-presence. Composes Tier-1 deterministic evaluators only — no LLM
+  calls, no embeddings.
+contracts:
+  - path: word-count.yaml
+    name: newsletter-word-count-0.1
+  - path: no-hallucinations.yaml
+    name: newsletter-no-hallucinations-0.1
+  - path: style.yaml
+    name: newsletter-style-0.1
+  - path: cta-presence.yaml
+    name: newsletter-cta-presence-0.1

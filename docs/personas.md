@@ -1,10 +1,19 @@
 # Eva — Personas
 
-Four primary personas; each represents a distinct usage mode and success criterion.
+Eva reuses or extends the shared hop-top personas, which are maintained in a
+separate location outside this repository. Each Eva persona below names its
+shared base by its repo-relative path (e.g. `individuals/solo-developer.md`)
+so reviewers with access to the shared persona library can cross-reference.
+
+These Eva personas are product-specific adaptations of those shared bases, not a separate taxonomy.
 
 ---
 
 ## Alex — AI Engineer
+
+**Shared Base Persona:** `individuals/solo-developer.md`
+**Relationship:** Extends the shared solo-developer persona from "single operator shipping a product
+quickly" into "AI engineer shipping evals and CI gates quickly."
 
 **Role:** AI/ML engineer at an early-stage startup.
 **Context:** Builds LLM-powered product features; ships fast; CI is king.
@@ -28,10 +37,17 @@ Four primary personas; each represents a distinct usage mode and success criteri
 
 ## Sam — Platform Engineer
 
+**Shared Base Persona:** `individuals/platform-engineer.md`
+**Relationship:** Reuses the shared platform-engineer persona directly, with Eva-specific emphasis
+on contract enforcement and AI gateway traffic.
+
 **Role:** Platform / infrastructure engineer at a mid-size company.
-**Context:** Runs Eva as a production API gateway in front of an LLM provider; on-call for uptime.
-**Primary tools:** `eva serve`, retry config, auth headers, health endpoint.
-**Success metric:** Zero undetected failures reaching downstream consumers.
+**Context:** Runs Eva as a production API gateway in front of an LLM provider; on-call for uptime;
+owns traffic capture, retention, and operational safety controls.
+**Primary tools:** `eva serve`, retry config, auth headers, health endpoint, invocation storage,
+sampling and redaction controls.
+**Success metric:** Zero undetected failures reaching downstream consumers; production traces are
+persisted safely enough to debug incidents without leaking sensitive data.
 
 ### User Stories
 
@@ -45,15 +61,29 @@ Four primary personas; each represents a distinct usage mode and success criteri
   authorised callers can invoke LLM endpoints through Eva.
 - US-010: As Sam, I want per-request evaluator configuration on the `/v1/proxy` endpoint so that
   each integration can enforce its own quality contract at runtime.
+- US-021: As Sam, I want Eva to persist raw request/response artifacts for gateway traffic so that
+  operators can reconstruct exactly what happened during an incident.
+- US-022: As Sam, I want Eva to ingest tool-call events from instrumented agents so that process
+  failures can be debugged instead of inferred from final output alone.
+- US-023: As Sam, I want configurable sampling, redaction, and retention on persisted artifacts so
+  that production observability does not create an uncontrolled data liability.
 
 ---
 
 ## Jordan — Compliance Officer
 
+**Shared Base Persona:** `individuals/platform-engineer.md`
+**Relationship:** Extends the shared platform-engineer persona with regulated-industry audit,
+evidence, and approval requirements. The operational foundation is the same; the acceptance bar is
+higher.
+
 **Role:** Compliance / risk officer at a regulated firm (finance or healthcare).
-**Context:** Must demonstrate that AI outputs meet regulatory standards; needs audit evidence.
-**Primary tools:** `eva drift report`, OTEL traces, contract validation CI gate.
-**Success metric:** Complete audit trail; zero undocumented PII exposure; drift alerts.
+**Context:** Must demonstrate that AI outputs meet regulatory standards; needs audit evidence,
+lineage, and historical comparisons across models and contracts.
+**Primary tools:** `eva drift report`, OTEL traces, contract validation CI gate, invocation
+querying, usage and comparison reports.
+**Success metric:** Complete audit trail; zero undocumented PII exposure; drift alerts; model and
+cost changes are attributable after the fact.
 
 ### User Stories
 
@@ -67,10 +97,20 @@ Four primary personas; each represents a distinct usage mode and success criteri
   every change to an approved output contract is trackable.
 - US-015: As Jordan, I want `eva drift report` to exit non-zero when no baseline runs exist so
   that missing-data gaps are surfaced rather than silently ignored.
+- US-024: As Jordan, I want to inspect the exact request, response, contract version, and trace id
+  for a historical invocation so that audit reviews do not rely on screenshots or operator memory.
+- US-025: As Jordan, I want to compare quality, latency, and estimated cost across model versions
+  so that a cheaper or newer model cannot be approved without evidence.
+- US-026: As Jordan, I want to slice failures by evaluator, contract, model, and metadata tags so
+  that compliance issues can be isolated to the affected cohort quickly.
 
 ---
 
 ## Taylor — OSS Contributor / Plugin Author
+
+**Shared Base Persona:** `contributors/oss-go-developer.md`
+**Relationship:** Extends the shared OSS contributor persona from Go infrastructure contributions to
+Python plugin, adapter, and evaluator contributions in Eva.
 
 **Role:** Open-source contributor; may also be an enterprise integrator building adapters.
 **Context:** Extends Eva with custom evaluators or alternative storage backends; publishes to PyPI.
@@ -89,3 +129,30 @@ Four primary personas; each represents a distinct usage mode and success criteri
   that my evaluator can make fine-grained decisions based on test metadata.
 - US-020: As Taylor, I want plugin errors to be isolated and reported as a failed score rather
   than crashing the runner so that one bad plugin doesn't abort the whole suite.
+
+---
+
+## Riley — Evaluation Ops Lead
+
+**Shared Base Persona:** `individuals/platform-engineer.md`
+**Relationship:** Extends the shared platform-engineer persona into evaluation operations:
+comparison workflows, review queues, annotation systems, and root-cause analysis across traces.
+
+**Role:** Evaluation operations lead or AI reliability engineer.
+**Context:** Owns the review loop between automated evals, production traces, and human judgment;
+cares about dashboards, comparisons, and annotation quality.
+**Primary tools:** run comparison CLI, failure slicing, usage reports, annotation workflows,
+review queues.
+**Success metric:** Automated and human eval signals can be reconciled in one system; regressions
+are explainable by evidence, not intuition.
+
+### User Stories
+
+- US-027: As Riley, I want Eva to queue failed or sampled invocations for review so that humans can
+  inspect the highest-risk outputs first.
+- US-028: As Riley, I want to attach annotations and corrected outputs to an invocation so that Eva
+  becomes the system of record for both automated and human evals.
+- US-029: As Riley, I want to compare automated evaluator scores against human labels so that weak
+  or misaligned evaluators can be identified and improved.
+- US-030: As Riley, I want to inspect tool traces, retrieved context, and evaluator results in one
+  place so that root-cause analysis is faster than reading scattered logs.

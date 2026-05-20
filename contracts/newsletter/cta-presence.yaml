@@ -1,0 +1,11 @@
+# Newsletter pack — CTA-presence gate (T-0201, US-037).
+# Last paragraph must contain a call-to-action verb. Whole-response regex
+# would let an early-paragraph CTA pass while the closing line trails off
+# without a hook — last_paragraph_regex prevents that.
+name: newsletter-cta-presence-0.1
+provider: newsletter-writer
+evaluators:
+  - name: last_paragraph_regex
+    mode: binary
+    case_sensitive: false
+    pattern: '\b(reply|subscribe|share|join|read|register|book|try|sign up|click|forward|follow|tell)\b'

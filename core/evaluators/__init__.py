@@ -2,7 +2,11 @@
 from core.evaluators.contains import ContainsEvaluator
 from core.evaluators.regex_match import RegexEvaluator
 from core.evaluators.json_schema_valid import JsonSchemaEvaluator
+from core.evaluators.last_paragraph_regex import LastParagraphRegexEvaluator
 from core.evaluators.no_pii import NoPiiEvaluator
+from core.evaluators.status_code import StatusCodeEvaluator, ExitCodeEvaluator
+from core.evaluators.equals import EqualsEvaluator
+from core.evaluators.word_count import WordCountEvaluator
 from core.evaluators.llm_judge import (
     RelevanceEvaluator,
     HallucinationEvaluator,
@@ -12,15 +16,41 @@ from core.evaluators.llm_judge import (
     parse_score,
 )
 
+# Name -> class registry. Used by contract loader to resolve `type:` /
+# `name:` references in YAML. exit_code is an alias for status_code —
+# both names resolve to the same class.
+EVALUATOR_REGISTRY = {
+    "contains": ContainsEvaluator,
+    "regex": RegexEvaluator,
+    "json_schema_valid": JsonSchemaEvaluator,
+    "last_paragraph_regex": LastParagraphRegexEvaluator,
+    "no_pii": NoPiiEvaluator,
+    "status_code": StatusCodeEvaluator,
+    "exit_code": ExitCodeEvaluator,  # alias for status_code
+    "equals": EqualsEvaluator,
+    "word_count": WordCountEvaluator,
+    "relevance": RelevanceEvaluator,
+    "hallucination": HallucinationEvaluator,
+    "tone": ToneEvaluator,
+    "task_completion": TaskCompletionEvaluator,
+    "safety": SafetyEvaluator,
+}
+
 __all__ = [
     "ContainsEvaluator",
     "RegexEvaluator",
     "JsonSchemaEvaluator",
+    "LastParagraphRegexEvaluator",
     "NoPiiEvaluator",
+    "StatusCodeEvaluator",
+    "ExitCodeEvaluator",
+    "EqualsEvaluator",
+    "WordCountEvaluator",
     "RelevanceEvaluator",
     "HallucinationEvaluator",
     "ToneEvaluator",
     "TaskCompletionEvaluator",
     "SafetyEvaluator",
+    "EVALUATOR_REGISTRY",
     "parse_score",
 ]

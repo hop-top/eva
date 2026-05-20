@@ -27,4 +27,9 @@ jobs:
         run: uv pip install --system -e ".[dev,server]"
 
       - name: Test
-        run: uv run pytest tests/ -v --ignore=tests/e2e
+        # tests/plugins/ require optional plugin packages (eva-a2a, eva-mcp,
+        # eva-otlp, eva-agntcy, eva-postgres) that aren't declared in any
+        # extra. Excluded to match the `make test` convention; install the
+        # individual plugin packages and drop this --ignore if/when they
+        # become first-class.
+        run: uv run pytest tests/ -v --ignore=tests/e2e --ignore=tests/plugins

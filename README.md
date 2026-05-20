@@ -1,10 +1,20 @@
 # Eva
 
+> [!WARNING]
+> **🚧 Do Not Use — History Will Be Rewritten 🚧**
+>
+> This repo is undergoing major restructuring as we selectively
+> open-source internal tools built at
+> [Idea Crafters LLC](https://ideacrafters.com). Git history **will be
+> force-pushed and rewritten** multiple times. Do not fork, clone, or
+> depend on this repo in any capacity until we tag a stable release.
+
+
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)
 ![Status](https://img.shields.io/badge/status-alpha-orange.svg)
 
-> Enforcement & Validation for Agents.
+> Enforcement & Validation for Agents: deterministic, binary pass/fail validator.
 
 ## What is Eva?
 
@@ -26,6 +36,32 @@ Or with uv:
 uv add eva
 uv add eva[server]
 ```
+
+## Development
+
+Working on eva itself (not just consuming it):
+
+```sh
+git clone https://github.com/hop-top/eva && cd eva
+make setup    # uv sync --extra dev --extra server
+make test     # unit + e2e (excludes optional plugin tests)
+```
+
+`make` targets: `setup`, `test`, `test-all`, `lint`, `format`,
+`typecheck`, `links`, `check` (lint + typecheck + test + links),
+`build`, `clean`. Run `make` (no target) or read the Makefile for the
+full list.
+
+**Why `--extra dev --extra server` matters:** `pytest` lives in the
+`dev` extra; `httpx`/FastAPI test plumbing lives in `server`. Plain
+`uv sync` resolves the venv but does NOT install test deps —
+`uv run pytest` will then fail with a confusing `ModuleNotFoundError`.
+The Makefile's `setup` target handles this; always prefer `make` over
+raw `uv` invocations for local dev.
+
+`tests/plugins/` is excluded by `make test` — those tests require optional
+plugin packages (`eva-a2a`, `eva-mcp`, `eva-otlp`, etc.) that aren't
+declared in any extra. Install them individually if you need them.
 
 ## Quickstart
 
