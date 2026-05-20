@@ -67,7 +67,7 @@ redis = [
 llm = [
     "litellm>=1.82.0",
 ]
-all = ["eva[dev,server,redis,llm]"]
+all = ["hop-top-eva[dev,server,redis,llm]"]
 
 [project.entry-points."eva.evaluators"]
 # Third-party evaluator plugins register here
@@ -97,10 +97,10 @@ markers = [
 ]
 
 [tool.uv.sources]
-eva = { workspace = true }
+hop-top-eva = { workspace = true }
 
 [dependency-groups]
 dev = [
-    "eva",
+    "hop-top-eva",
     "respx>=0.22.0",
 ]
