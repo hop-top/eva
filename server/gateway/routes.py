@@ -116,7 +116,10 @@ def _build_evaluator_map(specs: list[EvaluatorSpec]) -> dict:
     for spec in specs:
         factory = _BUILTIN_EVALUATOR_FACTORIES.get(spec.name)
         if factory:
-            evaluator_map[spec.name] = factory(spec.config)
+            # LLM adapter wiring to gateway is a follow-up — pass None for now.
+            # LLM-judge factories will raise a clear ValueError if invoked here
+            # without an adapter (see core/evaluators/builtin.py:_require_llm).
+            evaluator_map[spec.name] = factory(spec.config, None)
     return evaluator_map
 
 

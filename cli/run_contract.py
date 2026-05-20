@@ -142,7 +142,10 @@ def evaluate_contract(contract_path: Path, response_text: str) -> ContractRunRep
         if factory is None:
             skipped.append(ref.name)
             continue
-        ev = factory(ref.__pydantic_extra__ or {})
+        # LLM adapter wiring to CLI is a follow-up — pass None for now.
+        # LLM-judge factories raise ValueError if invoked here without an
+        # adapter (see core/evaluators/builtin.py:_require_llm).
+        ev = factory(ref.__pydantic_extra__ or {}, None)
         t0 = time.monotonic()
         score: Score = ev.run(response_text)
         dur_ms = int((time.monotonic() - t0) * 1000)

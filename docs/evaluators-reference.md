@@ -108,15 +108,15 @@ Exactly one of `expected` or `expected_in` must be provided.
 ### Example Contract Usage:
 ```yaml
 evaluators:
-  - type: status_code
+  - name: status_code
     step: cli-version
     expected: 0
   # exit_code alias — same behavior:
-  - type: exit_code
+  - name: exit_code
     step: cli-version
     expected: 0
   # allowed set:
-  - type: status_code
+  - name: status_code
     step: cli-version
     expected_in: [0, 2]
 ```
@@ -147,11 +147,11 @@ distinct from integers.
 ### Example Contract Usage:
 ```yaml
 evaluators:
-  - type: equals
+  - name: equals
     step: parse-config
     field: log_level
     expected: "info"
-  - type: equals
+  - name: equals
     step: parse-config
     field: retries
     expected: 3

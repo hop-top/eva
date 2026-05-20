@@ -135,7 +135,7 @@ def test_newsletter_evaluators_registered_as_builtin_factories(name):
     """
     assert name in BUILTIN_EVALUATOR_FACTORIES
     factory = BUILTIN_EVALUATOR_FACTORIES[name]
-    instance = factory({"max": 5} if name == "word_count" else {"pattern": "x"})
+    instance = factory({"max": 5} if name == "word_count" else {"pattern": "x"}, None)
     assert hasattr(instance, "run")
 
 

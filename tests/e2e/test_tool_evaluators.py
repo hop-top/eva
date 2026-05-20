@@ -1,20 +1,35 @@
 # tests/e2e/test_tool_evaluators.py
-"""E2E tests: tool-use evaluators wired to dataset loading."""
+"""E2E tests: tool-use evaluators wired to dataset loading.
+
+One test case per US-032 acceptance-criterion bullet:
+  AC1 planned_steps in dataset YAML            -> test_dataset_loads_planned_steps
+  AC2 tool_correctness                         -> test_tool_correctness_*
+  AC3 argument_correctness                     -> test_argument_correctness
+  AC4 tool_use (holistic)                      -> test_tool_use_evaluator
+  AC5 step_efficiency                          -> test_step_efficiency
+  AC6 plan_adherence                           -> test_plan_adherence
+  AC7 plan_quality                             -> test_plan_quality
+  AC8 geval custom criteria                    -> test_geval_custom_criteria
+  AC9 EventSink-driven tool events in context  -> test_tool_events_flow_via_event_sink_*
+"""
 from pathlib import Path
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from core.dataset import EvaTestCase, load_dataset
-from core.evaluators.llm_judge import (
-    ArgumentCorrectnessEvaluator,
-    GEvalEvaluator,
-    PlanAdherenceEvaluator,
-    PlanQualityEvaluator,
-    StepEfficiencyEvaluator,
-    ToolCorrectnessEvaluator,
-    ToolUseEvaluator,
-)
+from core.dataset import Dataset, EvaTestCase, load_dataset
+# Import via the US-032 dedicated module locations to exercise the new
+# `core/evaluators/<name>.py` modules added by T-0291.
+from core.evaluators.argument_correctness import ArgumentCorrectnessEvaluator
+from core.evaluators.geval import GEvalEvaluator
+from core.evaluators.plan_adherence import PlanAdherenceEvaluator
+from core.evaluators.plan_quality import PlanQualityEvaluator
+from core.evaluators.step_efficiency import StepEfficiencyEvaluator
+from core.evaluators.tool_correctness import ToolCorrectnessEvaluator
+from core.evaluators.tool_use import ToolUseEvaluator
+from core.events import EventSink
 from core.models import Score
+from core.plugins import EvaPlugin, EvaSpec, make_manager
+from core.runner import Runner
 
 
 def make_mock_llm(reply: str) -> AsyncMock:
@@ -215,3 +230,83 @@ tests:
     assert len(dataset.tests) == 1
     tc = dataset.tests[0]
     assert tc.planned_steps == ["fetch data", "process data", "store results"]
+
+
+# ---------------------------------------------------------------------------
+# AC9 — tool events flow into the evaluator context via EventSink
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_tool_events_flow_via_event_sink_to_run_eval_context():
+    """Tool events emitted into the per-invocation EventSink during the
+    run must appear in the ``context['tool_events']`` payload that the
+    runner hands to plugin hooks.
+
+    Production pattern (per commit afd9c88): each invocation gets its
+    own EventSink exposed via ``run_ctx['event_sink']``. Plugins emit
+    into it through the ``before_eval`` hook; the runner snapshots the
+    sink's events into ``context['tool_events']`` for evaluators.
+    """
+    captured: list[dict] = []
+
+    class CapturePlugin(EvaPlugin):
+        @EvaSpec.hook_impl
+        def before_eval(self, test_id: str, context: dict) -> None:
+            # Emit tool events into the per-invocation sink the runner
+            # installed for this test. This is the production seam:
+            # production agents do the same from their tool-call adapter.
+            sink = context["event_sink"]
+            sink.emit_tool_call("search", {"query": "Python docs"}, result="ok")
+            sink.emit_tool_call("fetch", {"url": "https://example.com"}, result="200")
+
+        @EvaSpec.hook_impl
+        def run_eval(self, response: str, context: dict) -> Score:
+            captured.append(context)
+            return Score(value=1.0)
+
+    pm = make_manager()
+    pm.register(CapturePlugin())
+
+    async def fake_agent(prompt: str, target: str) -> str:
+        return "done"
+
+    ds = Dataset(
+        name="ac9",
+        target="http://unused",
+        evaluators=[{"name": "capture", "mode": "binary"}],
+        tests=[EvaTestCase(id="ac9-1", input="hi", planned_steps=["s1", "s2"])],
+    )
+
+    runner = Runner(pm=pm, call_agent=fake_agent)
+    await runner.execute(ds)
+
+    assert len(captured) == 1
+    ctx = captured[0]
+    assert "tool_events" in ctx, "runner must inject tool_events into context"
+    tool_events = ctx["tool_events"]
+    assert isinstance(tool_events, list) and len(tool_events) == 2
+    # planned_steps should also be threaded into ctx so tool-use evaluators
+    # like step_efficiency / plan_adherence can read it.
+    assert ctx.get("planned_steps") == ["s1", "s2"]
+
+
+@pytest.mark.asyncio
+async def test_tool_correctness_consumes_event_sink_context():
+    """End-to-end: the evaluator reads tool_events emitted via EventSink."""
+    sink = EventSink()
+    sink.emit_tool_call("search", {"query": "q"}, result="ok")
+
+    llm = make_mock_llm("1.0\nUsed expected tool.")
+    ev = ToolCorrectnessEvaluator(llm_adapter=llm)
+
+    tool_events = [
+        {"tool_name": e.tool_name, "args": e.args} for e in sink.events
+    ]
+    score = await ev.evaluate(
+        prompt="Look it up",
+        response="found it",
+        tool_events=tool_events,
+        expected_tools=["search"],
+    )
+    assert isinstance(score, Score)
+    assert score.value == pytest.approx(1.0)
