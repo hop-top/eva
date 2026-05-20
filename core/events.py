@@ -82,8 +82,17 @@ class EventSink:
 class NullEventSink:
     """Silent no-op sink — safe default; callers need no guard checks."""
 
-    # Expose empty events list so code that reads sink.events still works.
-    events: list[ToolCallEvent] = []
+    @property
+    def events(self) -> list[ToolCallEvent]:
+        """Return a fresh empty list each access — Null sink has no state.
+
+        Previously this was a class-level mutable attribute. If any caller
+        mutated sink.events (e.g. sink.events.append(...)) the mutation
+        would persist across every NullEventSink() instance for the lifetime
+        of the process. A property returning a new list makes the no-op
+        semantics structural: there is genuinely nothing to share.
+        """
+        return []
 
     def emit_tool_call(
         self,
