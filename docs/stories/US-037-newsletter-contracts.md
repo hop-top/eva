@@ -5,7 +5,7 @@
 **Author:** jadb
 **Task:** T-0110, T-0201
 **Persona:** [Alex — AI Engineer](../personas.md) ·
-[Solo Developer](../../../../../.docs/personas/individuals/solo-developer.md)
+`individuals/solo-developer.md` (maintained in the shared hop-top personas library, outside this repo)
 
 ## User Goal
 

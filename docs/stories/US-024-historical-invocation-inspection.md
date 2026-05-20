@@ -1,7 +1,7 @@
 # US-024 — Inspect Historical Invocations
 
 **Associated Eva persona:** [Jordan — Compliance Officer](../personas.md)
-**Shared base persona:** [Platform Engineer](../../../../../.docs/personas/individuals/platform-engineer.md)
+**Shared base persona:** `individuals/platform-engineer.md` (maintained in the shared hop-top personas library, outside this repo)
 
 ## Story
 

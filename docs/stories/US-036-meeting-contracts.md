@@ -5,7 +5,7 @@
 **Author:** $USER
 **Task:** [T-0148](tlc://hop-top/ops/T-0148) (track: meeting-intake-pipeline)
 **Persona:** [Alex — AI Engineer](../personas.md) ·
-[Solo Developer](../../../../../.docs/personas/individuals/solo-developer.md)
+`individuals/solo-developer.md` (maintained in the shared hop-top personas library, outside this repo)
 
 ## User Goal
 

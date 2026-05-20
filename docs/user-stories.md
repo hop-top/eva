@@ -7,7 +7,7 @@ All user stories grouped by persona. IDs are stable; append new stories at end o
 ## Alex — AI Engineer
 
 Associated Eva persona: [Alex — AI Engineer](./personas.md)
-Shared base persona: [Solo Developer](../../../../.docs/personas/individuals/solo-developer.md)
+Shared base persona: `individuals/solo-developer.md` (maintained in the shared hop-top personas library, outside this repo)
 
 | ID     | Story |
 |--------|-------|
@@ -27,7 +27,7 @@ Shared base persona: [Solo Developer](../../../../.docs/personas/individuals/sol
 ## Alex — Developer & Evaluator User (Metrics Expansion)
 
 Associated Eva persona: [Alex — AI Engineer](./personas.md)
-Shared base persona: [Solo Developer](../../../../.docs/personas/individuals/solo-developer.md)
+Shared base persona: `individuals/solo-developer.md` (maintained in the shared hop-top personas library, outside this repo)
 
 | ID     | Story |
 |--------|-------|
@@ -48,7 +48,7 @@ Shared base persona: [Solo Developer](../../../../.docs/personas/individuals/sol
 ## Sam — Platform Engineer
 
 Associated Eva persona: [Sam — Platform Engineer](./personas.md)
-Shared base persona: [Platform Engineer](../../../../.docs/personas/individuals/platform-engineer.md)
+Shared base persona: `individuals/platform-engineer.md` (maintained in the shared hop-top personas library, outside this repo)
 
 | ID     | Story |
 |--------|-------|
@@ -74,7 +74,7 @@ Shared base persona: [Platform Engineer](../../../../.docs/personas/individuals/
 ## Jordan — Compliance Officer
 
 Associated Eva persona: [Jordan — Compliance Officer](./personas.md)
-Shared base persona: [Platform Engineer](../../../../.docs/personas/individuals/platform-engineer.md)
+Shared base persona: `individuals/platform-engineer.md` (maintained in the shared hop-top personas library, outside this repo)
 
 | ID     | Story |
 |--------|-------|
@@ -101,7 +101,7 @@ Shared base persona: [Platform Engineer](../../../../.docs/personas/individuals/
 ## Taylor — OSS Contributor / Plugin Author
 
 Associated Eva persona: [Taylor — OSS Contributor / Plugin Author](./personas.md)
-Shared base persona: [OSS Go Developer](../../../../.docs/personas/contributors/oss-go-developer.md)
+Shared base persona: `contributors/oss-go-developer.md` (maintained in the shared hop-top personas library, outside this repo)
 
 | ID     | Story |
 |--------|-------|
@@ -121,7 +121,7 @@ Shared base persona: [OSS Go Developer](../../../../.docs/personas/contributors/
 ## Riley — Evaluation Ops Lead
 
 Associated Eva persona: [Riley — Evaluation Ops Lead](./personas.md)
-Shared base persona: [Platform Engineer](../../../../.docs/personas/individuals/platform-engineer.md)
+Shared base persona: `individuals/platform-engineer.md` (maintained in the shared hop-top personas library, outside this repo)
 
 | ID     | Story |
 |--------|-------|

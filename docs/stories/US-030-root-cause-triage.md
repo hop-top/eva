@@ -1,7 +1,7 @@
 # US-030 — Root-Cause Triage Across Traces and Artifacts
 
 **Associated Eva persona:** [Riley — Evaluation Ops Lead](../personas.md)
-**Shared base persona:** [Platform Engineer](../../../../../.docs/personas/individuals/platform-engineer.md)
+**Shared base persona:** `individuals/platform-engineer.md` (maintained in the shared hop-top personas library, outside this repo)
 
 ## Story
 

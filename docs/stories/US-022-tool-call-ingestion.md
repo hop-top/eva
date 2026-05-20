@@ -1,7 +1,7 @@
 # US-022 — Ingest Tool-Call Events
 
 **Associated Eva persona:** [Sam — Platform Engineer](../personas.md)
-**Shared base persona:** [Platform Engineer](../../../../../.docs/personas/individuals/platform-engineer.md)
+**Shared base persona:** `individuals/platform-engineer.md` (maintained in the shared hop-top personas library, outside this repo)
 
 ## Story
 

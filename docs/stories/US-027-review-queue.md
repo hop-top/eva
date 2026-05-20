@@ -1,7 +1,7 @@
 # US-027 — Review Queue for Failed or Sampled Invocations
 
 **Associated Eva persona:** [Riley — Evaluation Ops Lead](../personas.md)
-**Shared base persona:** [Platform Engineer](../../../../../.docs/personas/individuals/platform-engineer.md)
+**Shared base persona:** `individuals/platform-engineer.md` (maintained in the shared hop-top personas library, outside this repo)
 
 ## Story
 
