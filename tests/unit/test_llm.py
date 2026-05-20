@@ -89,3 +89,64 @@ async def test_complete_accepts_vision_message():
     sent_messages = mock_acompletion.call_args.kwargs["messages"]
     assert sent_messages[0]["role"] == "user"
     assert isinstance(sent_messages[0]["content"], list)
+
+
+# ---------------------------------------------------------------------------
+# Robust usage extraction (regression for brittle dict(usage_obj))
+# ---------------------------------------------------------------------------
+
+from core.llm import _extract_usage
+
+
+class _AttrUsage:
+    """Plain attribute-style usage object — like OpenAI SDK's CompletionUsage."""
+
+    def __init__(self, prompt_tokens: int, completion_tokens: int, total_tokens: int):
+        self.prompt_tokens = prompt_tokens
+        self.completion_tokens = completion_tokens
+        self.total_tokens = total_tokens
+
+
+def test_extract_usage_from_dict():
+    """Plain dict / Mapping usage objects pass straight through."""
+    usage_dict = {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+    out = _extract_usage(usage_dict)
+    assert out == {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+
+
+def test_extract_usage_from_attribute_object():
+    """Attribute-style usage objects extract canonical token fields."""
+    usage = _AttrUsage(prompt_tokens=20, completion_tokens=8, total_tokens=28)
+    out = _extract_usage(usage)
+    assert out["prompt_tokens"] == 20
+    assert out["completion_tokens"] == 8
+    assert out["total_tokens"] == 28
+
+
+def test_extract_usage_from_none_returns_empty():
+    """Missing / None usage yields empty dict — must NOT crash."""
+    assert _extract_usage(None) == {}
+
+
+def test_extract_usage_from_malformed_object_returns_empty():
+    """An object with no relevant fields and no dump method yields {}."""
+
+    class _Useless:
+        pass
+
+    assert _extract_usage(_Useless()) == {}
+
+
+def test_extract_usage_prefers_model_dump_over_attrs():
+    """Pydantic-style .model_dump() output wins when present."""
+
+    class _PydanticLike:
+        prompt_tokens = 1
+        completion_tokens = 1
+        total_tokens = 2
+
+        def model_dump(self):
+            return {"prompt_tokens": 99, "completion_tokens": 11, "total_tokens": 110}
+
+    out = _extract_usage(_PydanticLike())
+    assert out == {"prompt_tokens": 99, "completion_tokens": 11, "total_tokens": 110}

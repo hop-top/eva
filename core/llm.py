@@ -1,4 +1,5 @@
 # core/llm.py
+from collections.abc import Mapping
 from typing import Any
 
 from pydantic import BaseModel
@@ -12,6 +13,55 @@ class LLMCompletion(BaseModel):
     model: str
     usage: dict
     raw_response: dict | None
+
+
+def _extract_usage(usage_obj: Any) -> dict:
+    """Coerce a LiteLLM usage object into a plain dict.
+
+    Handles three shapes a provider may return:
+
+      1. Mapping / dict — used directly.
+      2. Pydantic model or dataclass-style object — pulled via .model_dump()
+         (or vars()/__dict__ as a fallback).
+      3. Plain attribute object — manual extraction of prompt_tokens,
+         completion_tokens, total_tokens.
+
+    Returns {} for None or anything that yields nothing usable. Never raises
+    on malformed inputs — callers depend on this to keep token capture from
+    crashing the whole call.
+    """
+    if usage_obj is None:
+        return {}
+
+    # 1. Mapping protocol — covers dict and dict-like objects.
+    if isinstance(usage_obj, Mapping):
+        try:
+            return dict(usage_obj)
+        except Exception:
+            pass
+
+    # 2. Pydantic-style .model_dump() (preferred — emits canonical keys).
+    model_dump = getattr(usage_obj, "model_dump", None)
+    if callable(model_dump):
+        try:
+            dumped = model_dump()
+            if isinstance(dumped, Mapping):
+                return dict(dumped)
+        except Exception:
+            pass
+
+    # 3. __dict__ fallback — covers vanilla dataclass / SimpleNamespace.
+    obj_dict = getattr(usage_obj, "__dict__", None)
+    if isinstance(obj_dict, dict) and obj_dict:
+        return {k: v for k, v in obj_dict.items() if not k.startswith("_")}
+
+    # 4. Plain attribute access — last resort.
+    fields = ("prompt_tokens", "completion_tokens", "total_tokens")
+    extracted = {f: getattr(usage_obj, f, None) for f in fields}
+    if any(v is not None for v in extracted.values()):
+        return {k: v for k, v in extracted.items() if v is not None}
+
+    return {}
 
 
 class LiteLLMAdapter:
@@ -37,7 +87,7 @@ class LiteLLMAdapter:
         content = response.choices[0].message.content
 
         usage_obj = getattr(response, "usage", None)
-        usage: dict = dict(usage_obj) if usage_obj is not None else {}
+        usage: dict = _extract_usage(usage_obj)
 
         raw_response: dict | None = None
         try:
