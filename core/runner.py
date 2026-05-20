@@ -9,9 +9,7 @@ import pluggy
 
 from core.dataset import Dataset
 from core.events import EventSink, NullEventSink
-from core.costing import estimate_cost
-from core.llm import LLMCompletion
-from core.models import Artifact, EvaluatorResult, Invocation, Result, Run, Score, UsageRecord
+from core.models import Artifact, EvaluatorResult, Invocation, Result, Run, Score
 
 try:
     from core.otel import NoopOtelAdapter
