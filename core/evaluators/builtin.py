@@ -37,6 +37,13 @@ from core.evaluators.geval import GEvalEvaluator
 from core.evaluators.json_path import JsonPathEvaluator
 from core.evaluators.json_schema_valid import JsonSchemaEvaluator
 from core.evaluators.language import LanguageEvaluator
+from core.evaluators.llm_judge import (
+    HallucinationEvaluator,
+    RelevanceEvaluator,
+    SafetyEvaluator,
+    TaskCompletionEvaluator,
+    ToneEvaluator,
+)
 from core.evaluators.last_paragraph_regex import LastParagraphRegexEvaluator
 from core.evaluators.markdown_structure import MarkdownStructureEvaluator
 from core.evaluators.mood import MoodEvaluator
@@ -159,6 +166,25 @@ BUILTIN_EVALUATOR_FACTORIES: dict[str, EvaluatorFactory] = {
         mode=cfg.get("mode", "sentence"),
         min=cfg.get("min"),
         max=cfg.get("max"),
+    ),
+
+    # Generic LLM-judge (legacy, llm_judge.py) — registered so dataset mode
+    # and contracts can reference them; previously only in EVALUATOR_REGISTRY.
+    "relevance": lambda cfg, llm: RelevanceEvaluator(
+        llm_adapter=_require_llm(llm, "relevance"),
+    ),
+    "hallucination": lambda cfg, llm: HallucinationEvaluator(
+        llm_adapter=_require_llm(llm, "hallucination"),
+    ),
+    "tone": lambda cfg, llm: ToneEvaluator(
+        llm_adapter=_require_llm(llm, "tone"),
+        expected_tone=cfg.get("expected_tone", "professional"),
+    ),
+    "task_completion": lambda cfg, llm: TaskCompletionEvaluator(
+        llm_adapter=_require_llm(llm, "task_completion"),
+    ),
+    "safety": lambda cfg, llm: SafetyEvaluator(
+        llm_adapter=_require_llm(llm, "safety"),
     ),
 
     # P1 US-032 tool-use (agent B) — LLM-judge

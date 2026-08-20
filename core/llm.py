@@ -1,4 +1,5 @@
 # core/llm.py
+import os
 from collections.abc import Mapping
 from typing import Any
 
@@ -113,3 +114,19 @@ def build_vision_message(text: str, image_url: str) -> dict:
             {"type": "image_url", "image_url": {"url": image_url}},
         ],
     }
+
+
+def build_llm_adapter(config: Any | None = None) -> "LiteLLMAdapter | None":
+    """Construct the judge adapter from env / eva.yaml, or None when unconfigured.
+
+    Resolution order: ``EVA_JUDGE_MODEL`` env var, then ``judge.model`` from
+    EvaConfig. Returns None cleanly when neither is set — callers treat that
+    as "judge evaluators unavailable" and skip them with a reason instead of
+    failing the run.
+    """
+    judge = getattr(config, "judge", None)
+    model = os.environ.get("EVA_JUDGE_MODEL") or getattr(judge, "model", None)
+    if not model:
+        return None
+    params = dict(getattr(judge, "params", None) or {})
+    return LiteLLMAdapter(model=model, **params)

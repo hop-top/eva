@@ -68,6 +68,10 @@ class Run(BaseModel):
     started_at: datetime
     duration_ms: int = 0
     passed: bool = False
+    # Evaluator refs that could not run (e.g. judge-based evaluators with no
+    # LLM adapter configured), as "name: reason" strings. Skips never fail a
+    # run; they are surfaced so CI can notice silently-missing coverage.
+    skipped: list[str] = []
 
 
 # ---------------------------------------------------------------------------

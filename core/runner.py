@@ -49,10 +49,18 @@ class Runner:
         otel_adapter: Any = None,
         storage: Any = None,
         event_sink: EventSink | NullEventSink | None = None,
+        llm_adapter: Any = None,
+        use_builtins: bool = True,
     ):
         self.pm = pm
         self.call_agent = call_agent
         self.min_score = min_score
+        # Optional LLM adapter for judge-based builtin evaluators (see
+        # core.llm.build_llm_adapter). None = judge refs skip with a reason.
+        self.llm_adapter = llm_adapter
+        # Resolve dataset.evaluators entries against the builtin factory
+        # registry (core/evaluators/builtin.py) in addition to pluggy hooks.
+        self.use_builtins = use_builtins
         self.storage = storage  # optional SqliteStorage; None = no persistence
         # NOTE: a single shared sink across concurrent invocations leaks tool
         # events between in-flight tests and lets one drain() clear another
@@ -81,6 +89,36 @@ class Runner:
         started_at = datetime.utcnow()
         run_id = str(uuid.uuid4())[:8]
         results: list[Result] = []
+
+        # --- resolve builtin evaluators once per run ---
+        # Entries in dataset.evaluators whose name matches a builtin factory
+        # are instantiated here and scored directly, correctly paired with
+        # their own config. Entries with no factory remain "plugin configs":
+        # pluggy scores are paired against those (by Score.metadata
+        # evaluator_id when present, else positionally among themselves) —
+        # never against builtin configs, which is the old mislabeling bug.
+        builtin_specs: list[tuple[dict, Any]] = []
+        plugin_cfgs: list[dict] = []
+        run_skipped: list[str] = []
+        factories: dict[str, Any] = {}
+        if self.use_builtins:
+            from core.evaluators.builtin import BUILTIN_EVALUATOR_FACTORIES
+            factories = BUILTIN_EVALUATOR_FACTORIES
+        for cfg in dataset.evaluators:
+            cfg_dict = cfg if isinstance(cfg, dict) else {}
+            name = cfg_dict.get("name")
+            factory = factories.get(name) if name else None
+            if factory is None:
+                plugin_cfgs.append(cfg_dict)
+                continue
+            try:
+                instance = factory(cfg_dict, self.llm_adapter)
+            except ValueError as e:
+                # Judge-based factory without an adapter: per-evaluator skip,
+                # never a whole-run failure.
+                run_skipped.append(f"{name}: {e}")
+                continue
+            builtin_specs.append((cfg_dict, instance))
 
         is_sequential = self.concurrency_mode == "sequential" or self.max_workers == 1
         worker_count = 1 if is_sequential else self.max_workers
@@ -114,16 +152,51 @@ class Runner:
                 }
                 self.pm.hook.before_eval(test_id=test.id, context=run_ctx)
                 response = await self.call_agent(test.input, dataset.target)
-                scores: list[Score] = self.pm.hook.run_eval(
+                eval_ctx = {
+                    "test": test.model_dump(),
+                    **run_ctx,
+                    "tool_events": run_ctx.get(
+                        "tool_events", list(invocation_sink.events)
+                    ),
+                }
+
+                # (config, score) pairs — pairing is by construction for
+                # builtins and by evaluator_id/position-among-plugin-configs
+                # for pluggy scores (alignment fix).
+                paired: list[tuple[dict, Score]] = []
+
+                for cfg_dict, instance in builtin_specs:
+                    evaluate = getattr(instance, "evaluate", None)
+                    if callable(evaluate) and asyncio.iscoroutinefunction(evaluate):
+                        judge_ctx = {
+                            k: v
+                            for k, v in eval_ctx.items()
+                            if k not in ("test",)
+                        }
+                        score = await evaluate(
+                            prompt=test.input, response=response, **judge_ctx
+                        )
+                    else:
+                        score = instance.run(response)
+                    paired.append((cfg_dict, score))
+
+                plugin_scores: list[Score] = self.pm.hook.run_eval(
                     response=response,
-                    context={
-                        "test": test.model_dump(),
-                        **run_ctx,
-                        "tool_events": run_ctx.get(
-                            "tool_events", list(invocation_sink.events)
-                        ),
-                    },
+                    context=eval_ctx,
                 )
+                cfg_by_name = {
+                    c.get("name"): c for c in plugin_cfgs if c.get("name")
+                }
+                for idx, score in enumerate(plugin_scores):
+                    meta_id = (score.metadata or {}).get("evaluator_id")
+                    if meta_id and meta_id in cfg_by_name:
+                        cfg = cfg_by_name[meta_id]
+                    elif idx < len(plugin_cfgs):
+                        cfg = plugin_cfgs[idx]
+                    else:
+                        cfg = {}
+                    paired.append((cfg, score))
+
                 t1 = datetime.utcnow()
                 duration_ms = int((t1 - t0).total_seconds() * 1000)
 
@@ -131,17 +204,10 @@ class Runner:
                 ev_results: list[EvaluatorResult] = []
                 passed_all = True
 
-                for idx, score in enumerate(scores):
-                    ev_configs = dataset.evaluators
-                    ev_config = ev_configs[idx] if idx < len(ev_configs) else {}
-                    if isinstance(ev_config, dict):
-                        ev_name = ev_config.get("name", "unknown")
-                        mode_val = ev_config.get("mode", "binary")
-                        min_score = ev_config.get("min_score", self.min_score)
-                    else:
-                        ev_name = "unknown"
-                        mode_val = "binary"
-                        min_score = self.min_score
+                for ev_config, score in paired:
+                    ev_name = ev_config.get("name", "unknown")
+                    mode_val = ev_config.get("mode", "binary")
+                    min_score = ev_config.get("min_score", self.min_score)
 
                     r = Result(
                         test_id=test.id,
@@ -234,4 +300,5 @@ class Runner:
             started_at=started_at,
             duration_ms=int((t_end - started_at).total_seconds() * 1000),
             passed=passed,
+            skipped=run_skipped,
         )

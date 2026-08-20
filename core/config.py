@@ -34,6 +34,23 @@ class ObservabilityConfig(BaseModel):
     )
 
 
+class JudgeConfig(BaseModel):
+    """LLM-judge sub-config nested under ``judge:`` in eva.yaml.
+
+    ``EVA_JUDGE_MODEL`` env var overrides ``model``. No model configured in
+    either place means judge-based evaluators are skipped with a reason.
+    """
+
+    model: str | None = Field(
+        default=None,
+        description="LiteLLM model id for judge evaluators (e.g. 'gpt-4o-mini').",
+    )
+    params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Extra kwargs passed through to the LiteLLM adapter.",
+    )
+
+
 class EvaConfig(BaseModel):
     version: str = "1"
     project: str = "eva"
@@ -43,6 +60,7 @@ class EvaConfig(BaseModel):
     max_workers: int = 4
     min_score: float = 0.0
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
+    judge: JudgeConfig = Field(default_factory=JudgeConfig)
 
 
 _CONFIG_FILENAME = "eva.yaml"
@@ -56,6 +74,9 @@ _CONFIG_TEMPLATE = """\
 # concurrency: semaphore # semaphore | thread
 # max_workers: 4
 # min_score: 0.0
+# judge:
+#   model: gpt-4o-mini           # LiteLLM model for judge evaluators (env EVA_JUDGE_MODEL overrides)
+#   params: {}                   # extra LiteLLM kwargs
 # observability:
 #   sample_rate: 1.0             # 0.0-1.0; fraction of requests with artifact writes
 #   redaction_patterns: []       # regex list; matches replaced with [REDACTED]
