@@ -126,7 +126,9 @@ def run(
         None, "--input", help="Standalone mode: input file (or '-' for stdin)"
     ),
     fmt: str | None = typer.Option(
-        None, "--format", help="Standalone mode output: 'text' (default) or 'json' (CI default)"
+        None,
+        "--format",
+        help="Output: 'text' (default) or 'json'. Dataset mode: 'json' dumps the Run (implies --no-tui).",
     ),
     quiet: bool = typer.Option(False, "--quiet", help="Standalone mode: suppress passing evaluator output"),
 ):
@@ -174,10 +176,16 @@ def run(
 
     import asyncio
     import httpx
+    from core.config import find_and_load_config
     from core.dataset import load_dataset
+    from core.llm import build_llm_adapter
     from core.loader import build_manager
     from core.runner import Runner
     from core.storage import SqliteStorage
+
+    if fmt is not None and fmt not in ("json", "text"):
+        console.print("[red]Error:[/red] --format must be 'json' or 'text'")
+        raise typer.Exit(2)
 
     if target and not (target.startswith("http://") or target.startswith("https://")):
         console.print("[red]Error:[/red] --target must start with http:// or https://")
@@ -185,19 +193,33 @@ def run(
 
     ds = load_dataset(dataset, target=target)
     pm = build_manager(plugin_file=Path("plugins.py"))
+    # Judge adapter: EVA_JUDGE_MODEL env / eva.yaml judge.model. None is fine —
+    # judge-based builtin refs then skip with a reason (surfaced below).
+    llm_adapter = build_llm_adapter(find_and_load_config())
 
     async def call_agent(input: str, target_url: str) -> str:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(target_url, json={"input": input})
             return resp.text
 
-    runner = Runner(pm=pm, call_agent=call_agent, concurrency=concurrency)
+    runner = Runner(
+        pm=pm, call_agent=call_agent, concurrency=concurrency, llm_adapter=llm_adapter
+    )
 
-    if no_tui:
+    if fmt == "json":
+        eva_run = asyncio.run(runner.execute(ds))
+        print(eva_run.model_dump_json())
+    elif no_tui:
         eva_run = asyncio.run(runner.execute(ds))
         _print_plain(eva_run)
     else:
         eva_run = _run_with_tui(runner, ds)
+
+    if getattr(eva_run, "skipped", None):
+        from rich.console import Console as _Console
+        _err = _Console(stderr=True)
+        for note in eva_run.skipped:
+            _err.print(f"[yellow]skipped:[/yellow] {note}")
 
     storage = SqliteStorage()
     storage.save_run(eva_run)
