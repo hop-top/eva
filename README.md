@@ -1,20 +1,11 @@
 # Eva
 
-> [!WARNING]
-> **🚧 Do Not Use — History Will Be Rewritten 🚧**
->
-> This repo is undergoing major restructuring as we selectively
-> open-source internal tools built at
-> [Idea Crafters LLC](https://ideacrafters.com). Git history **will be
-> force-pushed and rewritten** multiple times. Do not fork, clone, or
-> depend on this repo in any capacity until we tag a stable release.
-
-
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)
-![Status](https://img.shields.io/badge/status-alpha-orange.svg)
 
 > Enforcement & Validation for Agents: deterministic, binary pass/fail validator.
+
+> **Status:** Active development. Usable today, with some rough edges as features evolve.
 
 ## What is Eva?
 
