@@ -9,7 +9,7 @@ description = "Eva — behavioral contract enforcement & validation for AI agent
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "Apache-2.0"}
-authors = [{name = "hop-top", email = "hello@hop-top.com"}]
+authors = [{ name = "Idea Crafters LLC", email = "open@ideacrafters.com" }, { name = "Jad Bitar" }]
 keywords = ["ai", "agents", "contracts", "evaluation", "gateway", "llm"]
 classifiers = [
     "Development Status :: 3 - Alpha",
