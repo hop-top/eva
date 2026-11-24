@@ -32,13 +32,27 @@ Loads a dataset of test cases and calls a live agent for each.
 | Flag | Description |
 |---|---|
 | `--dataset` | **Required**. Path to the evaluation dataset (YAML or JSONL). |
-| `--target` | Optional. Override the target agent URL. |
+| `--target` | Optional. Override the target agent URL (replaces a dataset `target:` mapping too). |
+| `--provider` | Optional. Chat target provider: `openai` \| `anthropic`. |
+| `--base-url` | Optional. Chat target base URL (e.g. `http://localhost:12000/v1`). |
+| `--model` | Optional. Chat target model id. |
+| `--api-key-env` | Optional. Env var **name** holding the chat target API key. |
+| `--max-tokens`, `--temperature`, `--top-p`, `--timeout-s` | Optional. Chat target sampling / timeout. |
 | `--concurrency` | Optional. Number of concurrent test executions. Default: `1`. |
 | `--no-tui` | Optional. Plain-text output for CI. |
 
 ```bash
 eva run --dataset evals/my_suite.yaml --target http://localhost:8000/chat
+
+# Chat target: call an OpenAI-compatible model directly
+eva run --dataset evals/coding.yaml --no-tui \
+  --provider openai --base-url http://localhost:12000/v1 --model my-local-model
 ```
+
+Chat target flags merge over the dataset's `target:` mapping (flags win);
+they cannot be combined with `--target` (exit `2`). See
+[dataset-reference.md](dataset-reference.md). Each run prints its
+`Run: <id>` for `eva runs show --run-id <id>` / `eva compare`.
 
 ### Standalone contract mode
 

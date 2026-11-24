@@ -208,6 +208,93 @@ evaluators:
 
 ---
 
+## `exact_match`
+
+Compares the whole response (reasoning stripped) to the test case's
+`expected_output` after normalization. This is the name used by sample
+datasets such as ben's `gsm8k-sample.yaml`; it is built in.
+
+### Configuration Properties:
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `expected` | `string` | No | Fallback expected value when a case has no `expected_output`. |
+
+Normalization (applies to both sides): trim; unwrap `**bold**`, backticks, quotes, `$`,
+`\boxed{}`; drop a trailing period; remove thousands separators (`1,234` = `1234`); casefold;
+collapse whitespace. If both sides parse as numbers they compare numerically (`6` = `6.0`).
+
+**Dataset-case evaluator:** reads the case's `expected_output`. A case without one (and no
+`expected` config) is not applicable: no result is recorded for it.
+
+```yaml
+evaluators:
+  - name: exact_match
+    mode: binary
+tests:
+  - id: q1
+    input: "What is 3+5-2? Reply with only the number."
+    expected_output: "6"
+```
+
+---
+
+## `final_answer`
+
+Like `exact_match`, but compares the **last** `Final answer: X` line of the response (also
+matches `**Final answer:** X`, `> Final answer: X`, any case). Use it when the model reasons
+before answering. No such line scores `0.0` (`no 'Final answer:' line found`).
+
+Same config, normalization and applicability as `exact_match`. Instruct the model in the
+prompt to end with `Final answer: <value>`.
+
+---
+
+## `code_tests`
+
+> [!CAUTION]
+> **Executes model output** on the machine running eva. Use only on trusted runs inside a
+> sandbox (container / VM / throwaway user). Isolation is best-effort hygiene, not a security
+> boundary: network and filesystem outside the temp dir are **not** blocked; CPU/RAM are not
+> limited.
+
+Extracts the **last** fenced code block for the language (a block tagged `python`/`py`/`python3`;
+else the last untagged block; blocks inside `<think>` reasoning are ignored), appends the case's
+tests, runs it, scores `1.0` (exit 0) or `0.0` with the reason (`no python code block found`,
+`exit code 1: <stderr tail>`, `execution timeout after Ns`).
+
+Execution: fresh temp dir (deleted after), `python -I` (isolated mode), minimal env (`PATH`,
+`HOME`/`TMPDIR` = temp dir; no inherited secrets), stdin closed, process group killed on
+timeout.
+
+### Configuration Properties:
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `language` | `string` | No | Default `python`. Other languages: add a `CodeLanguage` to `CODE_LANGUAGES` in `core/evaluators/code_tests.py`. |
+| `timeout` | `number` | No | Seconds, default `10`. `null` rejected. |
+| `test_code` | `string` | No | Shared harness appended after each case's tests. |
+
+### Test-case fields:
+| Field | Type | Description |
+|---|---|---|
+| `tests` | `string` or `list[string]` | Test code (e.g. `assert` lines), joined by newlines, appended to the extracted code. A case with no `tests` (and no `test_code`) is not applicable: no result recorded. |
+
+```yaml
+evaluators:
+  - name: code_tests
+    timeout: 10
+tests:
+  - id: add
+    input: "Write add(a, b) in Python."
+    tests: |
+      assert add(1, 2) == 3
+      assert add(-1, 1) == 0
+```
+
+Related: `code_block_runs` only **parses** blocks (no execution); `code_test_passes` executes the
+**first** python block with a config-level `test_code` (no per-case tests, `-c`, no temp dir).
+
+---
+
 ## `latency`
 
 *(Planned for Phase 1 Integration)*

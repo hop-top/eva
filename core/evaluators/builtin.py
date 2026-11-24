@@ -20,9 +20,11 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+from core.evaluators.answer_match import ExactMatchEvaluator, FinalAnswerEvaluator
 from core.evaluators.citation import CitationEvaluator
 from core.evaluators.code_block_runs import CodeBlockRunsEvaluator
 from core.evaluators.code_test_passes import CodeTestPassesEvaluator
+from core.evaluators.code_tests import CodeTestsEvaluator
 from core.evaluators.contains import ContainsEvaluator
 from core.evaluators.equals import EqualsEvaluator, _MISSING as _EQUALS_MISSING
 from core.evaluators.content_quality import (
@@ -155,6 +157,19 @@ BUILTIN_EVALUATOR_FACTORIES: dict[str, EvaluatorFactory] = {
     "code_test_passes": lambda cfg, _llm: CodeTestPassesEvaluator(
         test_code=cfg.get("test_code", ""),
         timeout=cfg.get("timeout", 10),
+    ),
+    # Dataset-mode scoring against per-case fields (``run_case``): see
+    # docs/evaluators-reference.md. ``code_tests`` EXECUTES model output.
+    "code_tests": lambda cfg, _llm: CodeTestsEvaluator(
+        language=cfg.get("language", "python"),
+        timeout=cfg.get("timeout", 10),
+        test_code=cfg.get("test_code", ""),
+    ),
+    "exact_match": lambda cfg, _llm: ExactMatchEvaluator(
+        expected=cfg.get("expected"),
+    ),
+    "final_answer": lambda cfg, _llm: FinalAnswerEvaluator(
+        expected=cfg.get("expected"),
     ),
     "json_path": lambda cfg, _llm: JsonPathEvaluator(
         path=cfg.get("path", ""),
