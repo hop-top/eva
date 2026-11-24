@@ -5,6 +5,7 @@ Powers CLI commands.  No side effects — all functions are pure reads.
 """
 from __future__ import annotations
 
+import json
 from typing import Optional
 
 from sqlmodel import Session, select
@@ -259,6 +260,13 @@ def get_invocation_detail(
         ):
             if aid:
                 artifact_ids.add(aid)
+        if inv_rec.metadata_json:
+            try:
+                rid = json.loads(inv_rec.metadata_json).get("reasoning_artifact_id")
+            except (ValueError, AttributeError):
+                rid = None
+            if rid:
+                artifact_ids.add(rid)
         for tc in tc_records:
             if tc.args_artifact_id:
                 artifact_ids.add(tc.args_artifact_id)
@@ -322,6 +330,8 @@ def compare_runs(
 
             total_cost: float = 0.0
             model_counts: dict[str, int] = {}
+            tokens = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+            latencies: list[int] = []
             if inv_ids:
                 ur_rows = session.exec(
                     select(UsageRecordRecord).where(
@@ -331,6 +341,12 @@ def compare_runs(
                 for ur in ur_rows:
                     total_cost += ur.estimated_cost_usd or 0.0
                     model_counts[ur.model] = model_counts.get(ur.model, 0) + 1
+                    if ur.scope == "agent":
+                        tokens["prompt_tokens"] += ur.prompt_tokens or 0
+                        tokens["completion_tokens"] += ur.completion_tokens or 0
+                        tokens["total_tokens"] += ur.total_tokens or 0
+                        if ur.latency_ms is not None:
+                            latencies.append(ur.latency_ms)
 
             evaluator_stats: dict[str, dict] = {}
             if inv_ids:
@@ -363,6 +379,11 @@ def compare_runs(
                 "models": model_counts,
                 "per_evaluator": per_evaluator,
                 "invocation_count": len(inv_ids),
+                **tokens,
+                "avg_latency_ms": (
+                    sum(latencies) / len(latencies) if latencies else None
+                ),
+                "latency_samples": len(latencies),
             }
 
         left_stats = _stats_for_run(left_run_id)

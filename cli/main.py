@@ -1,5 +1,6 @@
 # cli/main.py
 import sys
+from typing import Any
 from importlib.metadata import version as _pkg_version, PackageNotFoundError
 from pathlib import Path
 import typer
@@ -136,6 +137,22 @@ def contract_diff(
 def run(
     dataset: Path | None = typer.Option(None, "--dataset", help="Path to eval dataset (YAML or JSONL)"),
     target: str | None = typer.Option(None, "--target", help="Override target agent URL"),
+    provider: str | None = typer.Option(
+        None, "--provider", help="Chat target provider: openai | anthropic"
+    ),
+    base_url: str | None = typer.Option(
+        None, "--base-url", help="Chat target base URL (e.g. http://localhost:12000/v1)"
+    ),
+    model: str | None = typer.Option(None, "--model", help="Chat target model id"),
+    api_key_env: str | None = typer.Option(
+        None, "--api-key-env", help="Env var NAME holding the chat target API key"
+    ),
+    max_tokens: int | None = typer.Option(None, "--max-tokens", help="Chat target max tokens"),
+    temperature: float | None = typer.Option(None, "--temperature", help="Chat target temperature"),
+    top_p: float | None = typer.Option(None, "--top-p", help="Chat target top_p"),
+    timeout_s: float | None = typer.Option(
+        None, "--timeout-s", help="Chat target request timeout (seconds)"
+    ),
     concurrency: int = typer.Option(1, "--concurrency", help="Number of concurrent tests"),
     no_tui: bool = typer.Option(False, "--no-tui", help="Disable rich TUI (for CI)"),
     contract: Path | None = typer.Option(
@@ -155,7 +172,10 @@ def run(
 
     Two modes:
       * Dataset mode (default): `eva run --dataset suite.yaml --target <url>`
-        — calls a live agent for each test case.
+        — calls a live agent for each test case. Chat targets call an LLM
+        API directly: `eva run --dataset suite.yaml --provider openai
+        --base-url http://localhost:12000/v1 --model <id>` (or a `target:`
+        mapping in the dataset; flags override its fields).
       * Standalone contract mode: `eva run --contract c.yaml --input data.json`
         — evaluates a single response artifact against a contract. No agent
         call, no gateway. Intended for CI smoke and local dev.
@@ -210,19 +230,48 @@ def run(
         console.print("[red]Error:[/red] --target must start with http:// or https://")
         raise typer.Exit(1)
 
-    ds = load_dataset(dataset, target=target)
+    chat_flags = {
+        "provider": provider, "base_url": base_url, "model": model,
+        "api_key_env": api_key_env, "max_tokens": max_tokens,
+        "temperature": temperature, "top_p": top_p, "timeout_s": timeout_s,
+    }
+    chat_flags = {k: v for k, v in chat_flags.items() if v is not None}
+    if target and chat_flags:
+        console.print(
+            "[red]Error:[/red] --target (URL) cannot be combined with chat target flags"
+        )
+        raise typer.Exit(2)
+    try:
+        ds = load_dataset(dataset, target=target, chat=chat_flags or None)
+    except (ValueError, FileNotFoundError) as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(2)
     pm = build_manager(plugin_file=Path("plugins.py"))
     # Judge adapter: EVA_JUDGE_MODEL env / eva.yaml judge.model. None is fine —
     # judge-based builtin refs then skip with a reason (surfaced below).
     llm_adapter = build_llm_adapter(find_and_load_config())
 
-    async def call_agent(input: str, target_url: str) -> str:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(target_url, json={"input": input})
-            return resp.text
+    if ds.chat is not None:
+        from core.chat_targets import build_provider
 
+        chat_provider = build_provider(ds.chat)
+
+        async def call_agent(input: str, target_url: str) -> Any:
+            return await chat_provider.complete(input)
+    else:
+
+        async def call_agent(input: str, target_url: str) -> Any:
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.post(target_url, json={"input": input})
+                return resp.text
+
+    storage = SqliteStorage()
     runner = Runner(
-        pm=pm, call_agent=call_agent, concurrency=concurrency, llm_adapter=llm_adapter
+        pm=pm,
+        call_agent=call_agent,
+        concurrency=concurrency,
+        llm_adapter=llm_adapter,
+        storage=storage,
     )
 
     if fmt == "json":
@@ -240,7 +289,6 @@ def run(
         for note in eva_run.skipped:
             _err.print(f"[yellow]skipped:[/yellow] {note}")
 
-    storage = SqliteStorage()
     storage.save_run(eva_run)
 
     raise typer.Exit(0 if eva_run.passed else 1)
@@ -248,24 +296,28 @@ def run(
 
 def _print_plain(eva_run) -> None:
     """Plain-text result output (CI / --no-tui mode)."""
+    from rich.markup import escape
+
     total = len(eva_run.results)
     passed = sum(1 for r in eva_run.results if r.passed)
     for r in eva_run.results:
         icon = "[green]✓[/green]" if r.passed else "[red]✗[/red]"
-        console.print(f"  {icon} {r.test_id} ({r.duration_ms}ms)")
-    console.print(f"\nResults: {passed}/{total} Passed.")
+        why = f" — {r.score.reason}" if not r.passed and r.score.reason else ""
+        console.print(
+            f"  {icon} "
+            + escape(f"{r.test_id} · {r.evaluator} ({r.duration_ms}ms){why}")
+        )
+    console.print(f"\nResults: {passed}/{total} Passed.  Run: {eva_run.run_id}")
 
 
 def _run_with_tui(runner, ds):
     """Execute runner with rich progress spinner and results table."""
     import asyncio
-    import uuid
-    from datetime import datetime, timezone
     from rich.progress import (
         Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn,
     )
+    from rich.markup import escape
     from rich.table import Table
-    from core.models import Result, Run
 
     total_tests = len(ds.tests)
     progress = Progress(
@@ -281,57 +333,9 @@ def _run_with_tui(runner, ds):
             f"[cyan]Evaluating {ds.name}[/cyan]", total=total_tests
         )
 
-        async def _tracked():
-            started_at = datetime.now(timezone.utc)
-            run_id = str(uuid.uuid4())[:8]
-            semaphore = asyncio.Semaphore(runner.max_workers)
-            results = []
-
-            async def run_one(test):
-                async with semaphore:
-                    t0 = datetime.now(timezone.utc)
-                    runner.pm.hook.before_eval(test_id=test.id, context={})
-                    response = await runner.call_agent(test.input, ds.target)
-                    scores = runner.pm.hook.run_eval(
-                        response=response,
-                        context={"test": test.model_dump()},
-                    )
-                    t1 = datetime.now(timezone.utc)
-                    ms = int((t1 - t0).total_seconds() * 1000)
-                    batch = []
-                    for score in scores:
-                        r = Result(
-                            test_id=test.id,
-                            evaluator="unknown",
-                            score=score,
-                            mode="binary",
-                            min_score=1.0,
-                            duration_ms=ms,
-                        )
-                        runner.pm.hook.after_eval(
-                            test_id=test.id, score=score, context={}
-                        )
-                        batch.append(r)
-                    progress.advance(ptask)
-                    return batch
-
-            all_batches = await asyncio.gather(*[run_one(t) for t in ds.tests])
-            for batch in all_batches:
-                results.extend(batch)
-
-            t_end = datetime.now(timezone.utc)
-            ok = all(r.passed for r in results) if results else True
-            return Run(
-                run_id=run_id,
-                dataset=ds.name,
-                target=ds.target,
-                results=results,
-                started_at=started_at,
-                duration_ms=int((t_end - started_at).total_seconds() * 1000),
-                passed=ok,
-            )
-
-        eva_run = asyncio.run(_tracked())
+        eva_run = asyncio.run(
+            runner.execute(ds, on_test_done=lambda: progress.advance(ptask))
+        )
 
     table = Table(title="Evaluation Results", show_lines=False)
     table.add_column("Sample", style="cyan")
@@ -345,14 +349,17 @@ def _run_with_tui(runner, ds):
             r.evaluator,
             f"{r.score.value:.2f}",
             "[green]✓[/green]" if r.passed else "[red]✗[/red]",
-            r.score.reason or "",
+            escape(r.score.reason or ""),
         )
     console.print(table)
 
     total = len(eva_run.results)
     n_passed = sum(1 for r in eva_run.results if r.passed)
     status = "[green]PASSED[/green]" if eva_run.passed else "[red]FAILED[/red]"
-    console.print(f"\n{status}  {n_passed}/{total} passed  ({eva_run.duration_ms}ms)")
+    console.print(
+        f"\n{status}  {n_passed}/{total} passed  ({eva_run.duration_ms}ms)  "
+        f"Run: {eva_run.run_id}"
+    )
     return eva_run
 
 

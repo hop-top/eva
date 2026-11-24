@@ -79,7 +79,8 @@ class Run(BaseModel):
 # ---------------------------------------------------------------------------
 
 ArtifactKind = Literal[
-    "request", "response", "retrieval", "tool_args", "tool_result", "annotation_attachment"
+    "request", "response", "retrieval", "tool_args", "tool_result",
+    "annotation_attachment", "reasoning",
 ]
 StorageBackend = Literal["inline", "sqlite_blob", "file"]
 InvocationSource = Literal["offline_run", "gateway_proxy", "contract_invoke"]

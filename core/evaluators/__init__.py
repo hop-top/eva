@@ -1,8 +1,10 @@
 # core/evaluators/__init__.py
+from core.evaluators.answer_match import ExactMatchEvaluator, FinalAnswerEvaluator
 from core.evaluators.argument_correctness import ArgumentCorrectnessEvaluator
 from core.evaluators.citation import CitationEvaluator
 from core.evaluators.code_block_runs import CodeBlockRunsEvaluator
 from core.evaluators.code_test_passes import CodeTestPassesEvaluator
+from core.evaluators.code_tests import CodeTestsEvaluator
 from core.evaluators.contains import ContainsEvaluator
 from core.evaluators.content_quality import (
     ContentBiasEvaluator,
@@ -107,6 +109,9 @@ EVALUATOR_REGISTRY = {
     "citation": CitationEvaluator,
     "code_block_runs": CodeBlockRunsEvaluator,
     "code_test_passes": CodeTestPassesEvaluator,
+    "code_tests": CodeTestsEvaluator,
+    "exact_match": ExactMatchEvaluator,
+    "final_answer": FinalAnswerEvaluator,
     "json_path": JsonPathEvaluator,
     "markdown_structure": MarkdownStructureEvaluator,
     "sentence_paragraph_count": SentenceParagraphCountEvaluator,
@@ -155,6 +160,9 @@ __all__ = [
     "CitationEvaluator",
     "CodeBlockRunsEvaluator",
     "CodeTestPassesEvaluator",
+    "CodeTestsEvaluator",
+    "ExactMatchEvaluator",
+    "FinalAnswerEvaluator",
     "JsonPathEvaluator",
     "MarkdownStructureEvaluator",
     "SentenceParagraphCountEvaluator",

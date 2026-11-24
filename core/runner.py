@@ -7,9 +7,12 @@ from typing import Any, Callable, Awaitable
 
 import pluggy
 
+from core.chat_targets import ChatResult, TargetError
 from core.dataset import Dataset
 from core.events import EventSink, NullEventSink
-from core.models import Artifact, EvaluatorResult, Invocation, Result, Run, Score
+from core.models import (
+    Artifact, EvaluatorResult, Invocation, Result, Run, Score, UsageRecord,
+)
 
 try:
     from core.otel import NoopOtelAdapter
@@ -41,7 +44,10 @@ class Runner:
     def __init__(
         self,
         pm: pluggy.PluginManager,
-        call_agent: Callable[[str, str], Awaitable[str]],
+        # May return plain text, or a ChatResult carrying reasoning, model,
+        # usage and latency (chat targets). Raising TargetError records the
+        # case as an upstream_error instead of aborting the run.
+        call_agent: Callable[[str, str], Awaitable[str | ChatResult]],
         # concurrency accepts str mode or legacy int (backwards compat)
         concurrency: int | str = "semaphore",
         max_workers: int = 4,
@@ -85,7 +91,9 @@ class Runner:
         else:
             self.otel = _make_noop_adapter()
 
-    async def execute(self, dataset: Dataset) -> Run:
+    async def execute(
+        self, dataset: Dataset, on_test_done: Callable[[], None] | None = None
+    ) -> Run:
         started_at = datetime.now(timezone.utc)
         run_id = str(uuid.uuid4())[:8]
         results: list[Result] = []
@@ -151,7 +159,17 @@ class Runner:
                     "planned_steps": test.planned_steps,
                 }
                 self.pm.hook.before_eval(test_id=test.id, context=run_ctx)
-                response = await self.call_agent(test.input, dataset.target)
+                chat: ChatResult | None = None
+                target_error: str | None = None
+                try:
+                    raw_response = await self.call_agent(test.input, dataset.target)
+                except TargetError as e:
+                    raw_response, target_error = "", str(e)
+                if isinstance(raw_response, ChatResult):
+                    chat = raw_response
+                    response = chat.text
+                else:
+                    response = raw_response
                 eval_ctx = {
                     "test": test.model_dump(),
                     **run_ctx,
@@ -165,9 +183,16 @@ class Runner:
                 # for pluggy scores (alignment fix).
                 paired: list[tuple[dict, Score]] = []
 
-                for cfg_dict, instance in builtin_specs:
+                for cfg_dict, instance in ([] if target_error else builtin_specs):
                     evaluate = getattr(instance, "evaluate", None)
-                    if callable(evaluate) and asyncio.iscoroutinefunction(evaluate):
+                    run_case = getattr(instance, "run_case", None)
+                    if callable(run_case):
+                        # Per-case evaluators (code_tests, exact_match, …)
+                        # read test-case fields such as tests/expected_output.
+                        score = await asyncio.to_thread(
+                            run_case, response, test.model_dump()
+                        )
+                    elif callable(evaluate) and asyncio.iscoroutinefunction(evaluate):
                         judge_ctx = {
                             k: v
                             for k, v in eval_ctx.items()
@@ -178,12 +203,21 @@ class Runner:
                         )
                     else:
                         score = instance.run(response)
+                    if score is None:
+                        continue  # evaluator not applicable to this case
                     paired.append((cfg_dict, score))
 
-                plugin_scores: list[Score] = self.pm.hook.run_eval(
-                    response=response,
-                    context=eval_ctx,
-                )
+                if target_error:
+                    paired.append((
+                        {"name": "target", "mode": "binary"},
+                        Score(value=0.0, reason=f"target error: {target_error}"),
+                    ))
+                    plugin_scores: list[Score] = []
+                else:
+                    plugin_scores = self.pm.hook.run_eval(
+                        response=response,
+                        context=eval_ctx,
+                    )
                 cfg_by_name = {
                     c.get("name"): c for c in plugin_cfgs if c.get("name")
                 }
@@ -196,6 +230,9 @@ class Runner:
                     else:
                         cfg = {}
                     paired.append((cfg, score))
+
+                if not paired:
+                    run_skipped.append(f"{test.id}: no evaluator applied to this case")
 
                 t1 = datetime.now(timezone.utc)
                 duration_ms = int((t1 - t0).total_seconds() * 1000)
@@ -265,13 +302,50 @@ class Runner:
                         target=dataset.target,
                         started_at=t0,
                         duration_ms=duration_ms,
-                        status="pass" if passed_all else "fail",
+                        status=(
+                            "upstream_error" if target_error
+                            else "pass" if passed_all else "fail"
+                        ),
                         request_artifact_id=req_artifact_id,
                         response_artifact_id=resp_artifact_id,
+                        provider=chat.provider if chat else None,
+                        model=chat.model if chat else None,
                     )
-                    self.storage.save_invocation(
-                        invocation, ev_results, [req_artifact, resp_artifact]
-                    )
+                    artifacts = [req_artifact, resp_artifact]
+                    meta: dict[str, Any] = {}
+                    if target_error:
+                        meta["error"] = target_error
+                    if chat is not None:
+                        meta["finish_reason"] = chat.finish_reason
+                        meta["latency_ms"] = chat.latency_ms
+                        if chat.reasoning:
+                            reasoning_id = str(uuid.uuid4())
+                            artifacts.append(Artifact(
+                                artifact_id=reasoning_id,
+                                kind="reasoning",
+                                content_type="text/plain",
+                                storage_backend="inline",
+                                text_content=chat.reasoning,
+                                size_bytes=len(chat.reasoning.encode()),
+                                created_at=t1,
+                            ))
+                            meta["reasoning_artifact_id"] = reasoning_id
+                    if meta:
+                        invocation.metadata_json = json.dumps(meta)
+                    self.storage.save_invocation(invocation, ev_results, artifacts)
+                    if chat is not None:
+                        self.storage.save_usage_record(UsageRecord(
+                            usage_id=str(uuid.uuid4()),
+                            invocation_id=invocation_id,
+                            scope="agent",
+                            provider=chat.provider,
+                            model=chat.model or "unknown",
+                            prompt_tokens=chat.usage.get("prompt_tokens"),
+                            completion_tokens=chat.usage.get("completion_tokens"),
+                            total_tokens=chat.usage.get("total_tokens"),
+                            latency_ms=chat.latency_ms,
+                            raw_usage_json=json.dumps(chat.usage),
+                        ))
                     # Drain the per-invocation sink and persist ToolCall rows
                     # linked to this invocation. Drain isolation is guaranteed
                     # because each task owns its own sink instance.
@@ -279,6 +353,8 @@ class Runner:
                     if tool_events:
                         self.storage.save_tool_calls(invocation_id, tool_events)
 
+                if on_test_done is not None:
+                    on_test_done()
                 return test_results
 
         if is_sequential:

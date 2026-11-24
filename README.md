@@ -77,12 +77,43 @@ eva serve
 The gateway listens on `http://localhost:8000` and proxies requests through contract
 enforcement before forwarding to the upstream agent.
 
+## Grading models (chat targets)
+
+`eva run --dataset` can call an LLM chat API directly (no agent URL) and
+score the answer, so local and cloud models are comparable over time in
+`.eva/state.db` (`eva runs list`, `eva runs show`, `eva compare`):
+
+```sh
+eva run --dataset docs/examples/local-openai-coding-reasoning.yaml --no-tui \
+  --provider openai --base-url http://localhost:12000/v1 --model my-local-model
+```
+
+Providers: `openai` (any OpenAI-compatible server: OpenAI, mlx_lm.server,
+Ollama `/v1`, vLLM) and `anthropic`; pluggable. Model id, provider,
+latency and token usage are recorded per case; reasoning
+(`reasoning_content`, `reasoning`, `<think>…</think>`) is stored separately
+and never scored. Built-in evaluators for model grading: `code_tests`
+(runs generated code against per-case unit tests), `final_answer`
+(`Final answer: X` line) and `exact_match`.
+
+> [!CAUTION]
+> `code_tests` and `code_test_passes` **execute model output** on the
+> machine running eva. Use them only on trusted runs, inside a sandbox
+> (container/VM/throwaway user). Isolation is best-effort: no network or
+> filesystem blocking.
+
+Full reference: [docs/dataset-reference.md](docs/dataset-reference.md).
+
 ## Key Concepts
 
 - **Contracts** — YAML specs defining expected agent behavior; version-controlled,
   shareable, composable.
-- **Evaluators** — pluggable checks: `contains`, `regex`, `json_schema`, `no_pii`,
-  `llm_judge`.
+- **Evaluators** — pluggable checks. Deterministic: `contains`, `regex`,
+  `json_schema_valid`, `no_pii`, `exact_match`, `final_answer`, ... ; LLM-judge:
+  `relevance`, `hallucination`, ... (need `EVA_JUDGE_MODEL`). Code:
+  `code_block_runs` only **parses** fenced blocks (python/json/yaml/sh);
+  `code_test_passes` and `code_tests` **execute** the generated code
+  (see [evaluators-reference.md](docs/evaluators-reference.md)).
 - **Gateway** — FastAPI proxy enforcing contracts on live traffic; hot-reloads contract
   changes.
 - **Plugins** — extend storage, OTEL export, importers (A2A, MCP) via pluggy entry points.

@@ -122,20 +122,35 @@ def runs_show(
     table = Table(title=f"Invocations ({len(invocations)})", show_lines=False)
     table.add_column("Invocation ID", style="cyan", no_wrap=True)
     table.add_column("Test ID")
+    table.add_column("Provider")
     table.add_column("Model")
     table.add_column("Status", justify="center")
     table.add_column("Duration", justify="right")
+    table.add_column("Model latency", justify="right")
+    table.add_column("Tokens (in/out)", justify="right")
     table.add_column("Contract")
 
     for inv in invocations:
         status_cell = _status_cell(inv.status)
         dur = f"{inv.duration_ms}ms" if inv.duration_ms is not None else _NA
+        usage = [
+            u for u in storage.get_usage_records(inv.invocation_id)
+            if u.scope == "agent"
+        ]
+        lat = usage[0].latency_ms if usage else None
+        tok = (
+            f"{usage[0].prompt_tokens or 0}/{usage[0].completion_tokens or 0}"
+            if usage else _NA
+        )
         table.add_row(
             inv.invocation_id,
             _fmt_opt(inv.test_id),
+            _fmt_opt(inv.provider),
             _fmt_opt(inv.model),
             status_cell,
             dur,
+            _fmt_opt(lat, "{}ms"),
+            tok,
             _fmt_opt(inv.contract_name),
         )
 
@@ -209,6 +224,15 @@ def invocations_show(
 
     _print_artifact("Request", inv.request_artifact_id)
     _print_artifact("Response", inv.response_artifact_id)
+    if inv.metadata_json:
+        import json as _json
+        try:
+            _meta = _json.loads(inv.metadata_json)
+        except ValueError:
+            _meta = {}
+        _print_artifact("Reasoning", _meta.get("reasoning_artifact_id"))
+        if _meta.get("error"):
+            console.print(f"\n[bold]Target error[/bold]\n  {_meta['error']}")
 
     # Evaluator results
     er_list = detail.get("evaluator_results", [])
@@ -332,6 +356,29 @@ def compare(
         f"${rs['total_cost_usd']:.6f}",
         cost_diff_str,
     )
+
+    # Model latency / tokens (agent-scope usage; chat targets only)
+    summary.add_row(
+        "Avg model latency",
+        _fmt_opt(ls.get("avg_latency_ms"), "{:.0f}ms"),
+        _fmt_opt(rs.get("avg_latency_ms"), "{:.0f}ms"),
+        (
+            _colorize_diff(
+                f"{rs['avg_latency_ms'] - ls['avg_latency_ms']:+.0f}ms",
+                rs["avg_latency_ms"] - ls["avg_latency_ms"],
+                lower_is_better=True,
+            )
+            if ls.get("avg_latency_ms") is not None
+            and rs.get("avg_latency_ms") is not None
+            else ""
+        ),
+    )
+    for key, label in (
+        ("prompt_tokens", "Prompt tokens"),
+        ("completion_tokens", "Completion tokens"),
+    ):
+        lv, rv = ls.get(key, 0), rs.get(key, 0)
+        summary.add_row(label, f"{lv:,}", f"{rv:,}", f"{rv - lv:+,}")
 
     console.print(summary)
 

@@ -1,0 +1,41 @@
+# Grade a local OpenAI-compatible model (mlx_lm.server, Ollama /v1, vLLM, …)
+# on one coding case and one reasoning case.
+#
+#   eva run --dataset docs/examples/local-openai-coding-reasoning.yaml --no-tui
+#   # other endpoint/model, same dataset:
+#   eva run --dataset … --base-url http://localhost:11434/v1 --model qwen3:8b
+#
+# `code_tests` EXECUTES model output on this machine — trusted runs only.
+name: local-coding-reasoning
+
+target:
+  provider: openai                      # openai | anthropic
+  base_url: http://localhost:12000/v1   # POSTs to {base_url}/chat/completions
+  model: my-local-model                 # any id the server accepts
+  # api_key_env: MY_ENDPOINT_KEY        # optional: env var NAME, not the key
+  max_tokens: 2048
+  temperature: 0.0
+  timeout_s: 300
+
+evaluators:
+  - name: code_tests      # scores cases that carry `tests:`
+    mode: binary
+    timeout: 10
+  - name: final_answer    # scores cases that carry `expected_output:`
+    mode: binary
+
+tests:
+  - id: code-add
+    input: |
+      Write a Python function add(a, b) that returns the sum of a and b.
+      Reply with a single ```python code block.
+    tests: |
+      assert add(1, 2) == 3
+      assert add(-1, 1) == 0
+
+  - id: reason-apples
+    input: |
+      Janet has 3 apples. She buys 5 more and gives 2 to a friend.
+      How many apples does she have now? Think step by step, then end with
+      a line of the form `Final answer: <number>`.
+    expected_output: "6"
