@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 from sqlmodel import SQLModel, Field, Session, create_engine, select
 from sqlalchemy import Column, Text
+from sqlalchemy.engine import make_url
 from core.models import Run, Result
 
 
@@ -30,7 +31,12 @@ class PostgresStorageAdapter:
     """
 
     def __init__(self, url: str) -> None:
-        self.engine = create_engine(url)
+        parsed = make_url(url)
+        if parsed.drivername == "postgresql":
+            # SQLAlchemy 2.1 resolves bare postgresql:// to psycopg (v3);
+            # this plugin ships psycopg2. Explicit drivers are respected.
+            parsed = parsed.set(drivername="postgresql+psycopg2")
+        self.engine = create_engine(parsed)
 
     def setup(self) -> None:
         SQLModel.metadata.create_all(self.engine)
