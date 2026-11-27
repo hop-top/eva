@@ -329,6 +329,138 @@ callers. A caller that sends an exec step's output as `body` can rely on both.
 
 ---
 
+### `POST /v1/contract/evaluate`
+
+Score output you already hold (captured CLI output, an exec step result)
+against a named contract. Use `POST /v1/contract/invoke` when the gateway
+should call the contract's provider; use this route when there is nothing to
+call. It is the HTTP twin of `eva run --contract <file> --input <file>`. The
+contract's evaluators, `mode` and `min_score` apply exactly as on invoke. No
+provider is called, there is no retry, `request_schema` is not checked, and
+nothing is persisted. The contract's `provider` is never contacted, so it may
+be unreachable.
+
+```sh
+curl -sS -X POST http://localhost:8080/v1/contract/evaluate \
+  -H "Content-Type: application/json" \
+  -H "X-Eva-Key: eva_test_key" \
+  -d '{"contract": "scan", "output": {"exit_code": 0, "stdout": "all good\n", "stderr": ""}}'
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `contract` | str | yes | Contract name as defined in YAML `name:` field |
+| `output` | str or object | yes | The output to evaluate |
+| `prompt` | str | no | The prompt the output answers; judge evaluators score it against `output` |
+
+`output` as a string is evaluated as-is. `output` as an object is serialised
+to JSON text before evaluation, so an evaluator with `field: stdout` reads the
+object's top-level `stdout` key. Arrays, numbers, booleans and `null` are
+rejected. A string `output` is not parsed: a `field:`-scoped evaluator on a
+plain string fails with `invalid JSON payload`. Unknown extra keys are ignored.
+
+The key header is `X-Eva-Key`, as on every `/v1` route.
+
+| Status | `eva_status` | Meaning |
+|--------|--------------|---------|
+| `200` | `pass` | All evaluators passed |
+| `422` | `contract_violation` | At least one evaluator failed |
+| `401` | `unauthorized` | `X-Eva-Key` missing or not a known key |
+| `404` | — | No contract with that name |
+| `503` | — | Contract registry not initialised |
+| `422` | — | Malformed request (FastAPI shape) |
+
+#### `200` — pass
+
+```json
+{
+  "eva_status": "pass",
+  "request_id": "<uuid>",
+  "trace_id": null
+}
+```
+
+There is no `attempts` and no `response` key: nothing was called.
+
+#### `422` — contract violation
+
+```json
+{
+  "eva_status": "contract_violation",
+  "violations": [
+    {
+      "evaluator": "contains",
+      "score": 0.0,
+      "reason": "Response does not contain 'all good'"
+    }
+  ],
+  "request_id": "<uuid>",
+  "trace_id": null
+}
+```
+
+#### Judge evaluators and `prompt`
+
+Judge evaluators run when a judge is configured and `prompt` is sent; the
+judge scores `prompt` against `output`. Without `prompt` they are skipped, and
+the `200` or `422` body gains a `skipped` list (absent when nothing was
+skipped):
+
+```json
+{
+  "eva_status": "pass",
+  "skipped": [
+    {"evaluator": "relevance", "reason": "judge evaluators need the request prompt: send prompt"}
+  ],
+  "request_id": "<uuid>",
+  "trace_id": null
+}
+```
+
+Other skip reasons are `no judge model configured` and the
+`needs <inputs>, which the gateway cannot supply` reasons listed under
+[Judge evaluators in the gateway](llm-evaluators.md#judge-evaluators-in-the-gateway).
+A judge call that fails scores `0.0` with a reason starting `judge error:`; it
+is a violation, never a `500`. The contract's `prompt_field` is not used here.
+
+#### `401` — missing or invalid key
+
+```json
+{
+  "detail": "Missing X-Eva-Key header",
+  "eva_status": "unauthorized",
+  "violations": [
+    {"field": "X-Eva-Key", "message": "Missing X-Eva-Key header"}
+  ]
+}
+```
+
+An unknown key returns the same shape with `"Invalid API key"` in `detail`
+and in the violation's `message`.
+
+#### `404` — unknown contract
+
+```json
+{"detail": "Contract 'nope' not found"}
+```
+
+#### `503` — registry not initialised
+
+```json
+{"detail": "Contract registry not initialized"}
+```
+
+#### `422` — malformed request
+
+A missing `contract` or `output`, or an `output` that is not a string or
+object, is rejected in FastAPI's shape, with no `eva_status`:
+
+```json
+{"detail": [{"type": "missing", "loc": ["body", "output"], "msg": "Field required", "input": {"contract": "scan"}}]}
+```
+
+---
+
 ### `GET /health`
 
 Liveness probe.

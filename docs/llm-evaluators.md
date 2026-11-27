@@ -72,6 +72,8 @@ raw output as reason, as in dataset mode.
 ### Judge evaluators in the gateway
 
 `POST /v1/contract/invoke` and `POST /v1/proxy` run judge evaluators too.
+`POST /v1/contract/evaluate` does as well, taking the prompt from its `prompt`
+request field.
 
 **Configuration.** One judge per gateway process, built at start from the same
 settings as dataset and contract mode (`EVA_JUDGE_MODEL` / `EVA_JUDGE_BASE_URL`
