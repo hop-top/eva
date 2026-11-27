@@ -113,8 +113,10 @@ The gateway (`eva serve`) is a FastAPI service exposing:
   response against an inline list of evaluators. Supports retry-with-hint.
 * `POST /v1/contract/invoke` — same, but the evaluator list comes from a
   named contract loaded from `--contracts-dir`.
+* `POST /v1/contract/evaluate` — evaluate output you already hold against a
+  named contract; no agent call, nothing persisted.
 
-Both endpoints persist invocations + artifacts via the storage adapter
+`/v1/proxy` and `/v1/contract/invoke` persist invocations + artifacts via the storage adapter
 (SQLite by default) so observability commands (`eva runs`, `eva invocations`,
 `eva failures`) can replay them later.
 

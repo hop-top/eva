@@ -23,6 +23,7 @@ eva version                              # verify CLI
 3. Run eval    →  eva run --dataset <path> --target <url>  (offline batch eval)
 4. Proxy       →  POST /v1/proxy  (live gate: forward + evaluate in one call)
 5. Invoke      →  POST /v1/contract/invoke  (contract-bound single call)
+   Evaluate    →  POST /v1/contract/evaluate  (score output you already hold)
 6. Observe     →  eva runs list / eva invocations show / eva failures list
 ```
 
