@@ -109,16 +109,14 @@ evaluators:
     field: stdout
 ```
 
-> **Note:** `field:` routing is honored by the `status_code` (alias
-> `exit_code`) and `equals` evaluators only. The `regex` and `contains`
-> evaluators always evaluate the full input string, so the `field: stdout`
-> keys above are ignored and the patterns match anywhere in the JSON
-> payload. If you need to scope `regex` / `contains` to a single field,
-> pre-extract that field before invoking `eva run`, e.g.:
->
-> ```bash
-> jq -r '.stdout' artifacts/output.json | eva run --contract c.yaml --input -
-> ```
+> **Note:** `field:` routing is honored by `status_code` (alias
+> `exit_code`), `equals`, `regex`, and `contains`. For `regex` and `contains`,
+> when `field` is set the input is parsed as a JSON object and the check runs
+> against that top-level field's string value only; text elsewhere in the
+> payload is ignored. The check scores 0.0 (never raises) when the input is not
+> a JSON object, the field is missing, or the field's value is not a string.
+> Without `field`, the whole input string is evaluated. Nested or dotted paths
+> are not supported.
 
 Run the contract against a recorded output via the standalone CLI:
 

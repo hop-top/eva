@@ -7,9 +7,9 @@ list, dict.
 """
 from __future__ import annotations
 
-import json
 from typing import Any
 
+from core.evaluators._field import extract_field
 from core.models import Score
 
 
@@ -47,16 +47,9 @@ class EqualsEvaluator:
         self.step = step
 
     def run(self, response: str) -> Score:
-        try:
-            payload = json.loads(response)
-        except json.JSONDecodeError as e:
-            return Score(value=0.0, reason=f"equals: invalid JSON payload: {e}")
-        if not isinstance(payload, dict):
-            return Score(value=0.0, reason="equals: payload is not a JSON object")
-        if self.field not in payload:
-            return Score(value=0.0, reason=f"equals: field '{self.field}' missing from payload")
-
-        actual = payload[self.field]
+        actual, err = extract_field(response, self.field, "equals")
+        if err is not None:
+            return err
         if type(actual) is not type(self.expected) and not (
             # int/float cross-comparison is fine; everything else strict
             isinstance(actual, (int, float))
