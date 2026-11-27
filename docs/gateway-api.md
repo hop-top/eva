@@ -351,7 +351,7 @@ curl -sS -X POST http://localhost:8080/v1/contract/evaluate \
 |-------|------|----------|-------------|
 | `contract` | str | yes | Contract name as defined in YAML `name:` field |
 | `output` | str or object | yes | The output to evaluate |
-| `prompt` | str | no | The prompt the output answers; judge evaluators score it against `output` |
+| `prompt` | str | no | The prompt the output answers; judge evaluators score it against `output`. An empty string is rejected |
 
 `output` as a string is evaluated as-is. `output` as an object is serialised
 to JSON text before evaluation, so an evaluator with `field: stdout` reads the

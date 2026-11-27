@@ -163,6 +163,13 @@ async def test_missing_output_or_contract_is_rejected(app):
 
 
 @pytest.mark.asyncio
+async def test_empty_prompt_is_rejected(app):
+    resp = await post(app, {"contract": "plain", "output": "hello", "prompt": ""})
+    assert resp.status_code == 422
+    assert "eva_status" not in resp.json()
+
+
+@pytest.mark.asyncio
 async def test_unknown_extra_keys_are_ignored(app):
     resp = await post(app, {"contract": "plain", "output": "hello", "body": {"x": 1}, "z": 2})
     assert resp.status_code == 200, resp.text

@@ -13,7 +13,7 @@ from typing import Any, Callable
 
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from server.gateway.evaluator import evaluate_response
 
@@ -23,7 +23,7 @@ NO_PROMPT_REASON = "judge evaluators need the request prompt: send prompt"
 class EvaluateRequest(BaseModel):
     contract: str
     output: str | dict
-    prompt: str | None = None
+    prompt: str | None = Field(default=None, min_length=1)
 
 
 def output_text(output: str | dict) -> str:
