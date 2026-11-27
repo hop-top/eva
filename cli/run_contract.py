@@ -10,11 +10,13 @@ Reuses the same built-in evaluator dispatch as the gateway
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -74,28 +76,33 @@ class ContractRunReport:
         )
 
 
-def _load_input(input_path: str) -> str:
-    """Load input from file path or stdin (`-`). Returns raw text.
+def _load_text(path_or_dash: str, what: str) -> str:
+    """Load text from file path or stdin (`-`).
 
-    Raises ValueError if the input is not valid UTF-8 (binary file or wrong
+    Raises ValueError if the text is not valid UTF-8 (binary file or wrong
     encoding) — caught by run_contract_cli and surfaced as EXIT_BAD_INPUT.
     """
-    if input_path == "-":
+    if path_or_dash == "-":
         try:
             return sys.stdin.read()
         except UnicodeDecodeError as e:
             raise ValueError(
-                f"stdin input is not valid UTF-8 text: {e}"
+                f"stdin {what} is not valid UTF-8 text: {e}"
             ) from e
-    path = Path(input_path)
+    path = Path(path_or_dash)
     if not path.exists():
-        raise FileNotFoundError(f"Input file not found: {input_path}")
+        raise FileNotFoundError(f"{what.capitalize()} file not found: {path_or_dash}")
     try:
         return path.read_text(encoding="utf-8")
     except UnicodeDecodeError as e:
         raise ValueError(
-            f"input file '{path}' is not valid UTF-8 text: {e}"
+            f"{what} file '{path}' is not valid UTF-8 text: {e}"
         ) from e
+
+
+def _load_input(input_path: str) -> str:
+    """Load the response artifact (file path or stdin `-`)."""
+    return _load_text(input_path, "input")
 
 
 def _passed(score: float, mode: str, min_score: float) -> bool:
@@ -115,14 +122,89 @@ def _passed(score: float, mode: str, min_score: float) -> bool:
     return score == 1.0
 
 
+# Judge evaluators (factories that need an llm_adapter) split by what they read
+# beyond (prompt, response). A contract run supplies nothing else, so those in
+# JUDGE_NEEDS are skipped with a precise reason instead of guessing inputs.
+JUDGE_PROMPT_ONLY = frozenset({
+    "relevance", "hallucination", "tone", "task_completion", "safety",
+    "plan_quality", "geval", "rag:answer_relevancy", "rag:faithfulness",
+    "content:bias", "content:toxicity", "content:summarization",
+    "content:prompt_alignment",
+})
+# name -> (needed input, config key that supplies it, if any)
+JUDGE_NEEDS: dict[str, tuple[str, str | None]] = {
+    "tool_correctness": ("tool events", None),
+    "argument_correctness": ("tool events", None),
+    "tool_use": ("tool events", None),
+    "step_efficiency": ("tool events", None),
+    "plan_adherence": ("planned steps", None),
+    "rag:contextual_relevancy": ("retrieval context", None),
+    "rag:contextual_precision": ("retrieval context", None),
+    "rag:contextual_recall": ("retrieval context", None),
+    "ragas": ("retrieval context", None),
+    "content:goal_accuracy": ("expected output", "expected_output"),
+}
+
+NO_JUDGE_REASON = "no judge model configured"
+NO_PROMPT_REASON = (
+    "judge evaluators need the request prompt: pass --prompt or --prompt-file"
+)
+
+
+def _missing_input_reason(name: str, cfg: dict) -> str | None:
+    need = JUDGE_NEEDS.get(name)
+    if need is None or (need[1] and cfg.get(need[1])):
+        return None
+    return (
+        f"needs {need[0]}, which a contract run cannot supply "
+        "(use dataset mode)"
+        if not need[1]
+        else f"needs {need[0]}: set `{need[1]}` in the contract, or use dataset mode"
+    )
+
+
+async def _run_judges(jobs: list[tuple[Any, str]], prompt: str):
+    """Run judge evaluators in one event loop; a failed call yields a 0.0 Score."""
+    results = []
+    for ev, response_text in jobs:
+        t0 = time.monotonic()
+        try:
+            score = await ev.evaluate(prompt=prompt, response=response_text)
+        except Exception as e:  # endpoint down, timeout, auth, ...
+            msg = (str(e).strip().splitlines() or [""])[0]
+            score = Score(
+                value=0.0,
+                reason=f"judge error: {type(e).__name__}: {msg}".rstrip(": "),
+            )
+        results.append((score, int((time.monotonic() - t0) * 1000)))
+    return results
+
+
+def _outcome(ref, score: Score, dur_ms: int) -> EvaluatorOutcome:
+    return EvaluatorOutcome(
+        name=ref.name,
+        mode=ref.mode,
+        min_score=ref.min_score,
+        score=score.value,
+        passed=_passed(score.value, ref.mode, ref.min_score),
+        reason=score.reason,
+        duration_ms=dur_ms,
+    )
+
+
 def evaluate_contract(
-    contract_path: Path, response_text: str, judge_configured: bool = False
+    contract_path: Path,
+    response_text: str,
+    llm_adapter: Any = None,
+    prompt: str | None = None,
 ) -> ContractRunReport:
     """Run all evaluators in `contract_path` against `response_text`.
 
     Returns a ContractRunReport with one outcome per recognised evaluator.
-    Unknown evaluators (no factory) are recorded under `skipped`; judge-based
-    evaluators, which need a model, under `skipped_judge` with a reason.
+    Unknown evaluators (no factory) are recorded under `skipped`. Judge-based
+    evaluators run when `llm_adapter` and `prompt` are both given and the
+    evaluator needs nothing else; otherwise they land under `skipped_judge`
+    with a reason.
     """
     # YAMLError → ValueError so callers see a uniform "bad input" exception
     # (load_contract lets YAMLError bubble; CLI layer maps ValueError → exit 2).
@@ -135,10 +217,12 @@ def evaluate_contract(
 
     started = time.monotonic()
 
-    outcomes: list[EvaluatorOutcome] = []
     skipped: list[str] = []
     skipped_judge: list[str] = []
-    overall_pass = True
+    # Slots keep contract order: a finished EvaluatorOutcome, or a pending
+    # (ref, evaluator) judge job filled in after the judge calls ran.
+    slots: list[Any] = []
+    jobs: list[tuple[Any, str]] = []
 
     # One evaluator per ref (duplicate names with distinct configs supported —
     # e.g. two `contains` checks with different substrings). Per-evaluator
@@ -149,36 +233,49 @@ def evaluate_contract(
         if factory is None:
             skipped.append(ref.name)
             continue
+        cfg = ref.__pydantic_extra__ or {}
         # Judge-based factories raise ValueError without an adapter (see
-        # core/evaluators/builtin.py:_require_llm): record a skip, not an error.
+        # core/evaluators/builtin.py:_require_llm). Probe without one so
+        # non-judge evaluators (incl. prose_assertion) behave as before.
         try:
-            ev = factory(ref.__pydantic_extra__ or {}, None)
-        except ValueError:
-            reason = (
-                "judge evaluators are not supported with --contract/--input "
-                "(no request prompt)"
-                if judge_configured
-                else "no judge model configured"
-            )
-            skipped_judge.append(f"{ref.name}: {reason}")
+            ev = factory(cfg, None)
+        except ValueError as e:
+            if llm_adapter is None:
+                skipped_judge.append(f"{ref.name}: {NO_JUDGE_REASON}")
+                continue
+            if ref.name not in JUDGE_PROMPT_ONLY and ref.name not in JUDGE_NEEDS:
+                # Unclassified: never guess inputs for it.
+                skipped_judge.append(f"{ref.name}: {e}")
+                continue
+            why = _missing_input_reason(ref.name, cfg)
+            if why is None and prompt is None:
+                why = NO_PROMPT_REASON
+            if why is not None:
+                skipped_judge.append(f"{ref.name}: {why}")
+                continue
+            try:
+                ev = factory(cfg, llm_adapter)
+            except (KeyError, TypeError) as e:
+                skipped_judge.append(f"{ref.name}: invalid evaluator config ({e})")
+                continue
+            slots.append((ref, len(jobs)))
+            jobs.append((ev, response_text))
             continue
         t0 = time.monotonic()
         score: Score = ev.run(response_text)
         dur_ms = int((time.monotonic() - t0) * 1000)
-        passed = _passed(score.value, ref.mode, ref.min_score)
-        if not passed:
-            overall_pass = False
-        outcomes.append(
-            EvaluatorOutcome(
-                name=ref.name,
-                mode=ref.mode,
-                min_score=ref.min_score,
-                score=score.value,
-                passed=passed,
-                reason=score.reason,
-                duration_ms=dur_ms,
-            )
-        )
+        slots.append(_outcome(ref, score, dur_ms))
+
+    judged = asyncio.run(_run_judges(jobs, prompt)) if jobs else []
+    outcomes: list[EvaluatorOutcome] = []
+    for slot in slots:
+        if isinstance(slot, EvaluatorOutcome):
+            outcomes.append(slot)
+        else:
+            ref, idx = slot
+            score, dur_ms = judged[idx]
+            outcomes.append(_outcome(ref, score, dur_ms))
+    overall_pass = all(o.passed for o in outcomes)
 
     total_ms = int((time.monotonic() - started) * 1000)
     return ContractRunReport(
@@ -221,10 +318,37 @@ def run_contract_cli(
     quiet: bool,
     stdout=None,
     stderr=None,
+    prompt: str | None = None,
+    prompt_file: str | None = None,
 ) -> int:
-    """Entry point used by `cli/main.py` and tests. Returns the exit code."""
+    """Entry point used by `cli/main.py` and tests. Returns the exit code.
+
+    `prompt` / `prompt_file` (`-` = stdin) give judge evaluators the request
+    prompt; at most one of them.
+    """
     out = stdout if stdout is not None else sys.stdout
     err = stderr if stderr is not None else sys.stderr
+
+    try:
+        if prompt is not None and prompt_file is not None:
+            raise ValueError("--prompt and --prompt-file are mutually exclusive")
+        if prompt_file is not None:
+            if prompt_file == "-" and input_path == "-":
+                raise ValueError(
+                    "--prompt-file - and --input - both read stdin; use a file for one"
+                )
+            prompt = _load_text(prompt_file, "prompt file")
+        if prompt is not None and not prompt.strip():
+            raise ValueError("prompt is empty")
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=err)
+        return EXIT_BAD_INPUT
+    except ValueError as e:
+        print(f"Error: {e}", file=err)
+        return EXIT_BAD_INPUT
+    except OSError as e:
+        print(f"Error reading prompt: {e}", file=err)
+        return EXIT_BAD_INPUT
 
     try:
         response_text = _load_input(input_path)
@@ -243,9 +367,9 @@ def run_contract_cli(
         from core.config import find_and_load_config
         from core.llm import build_llm_adapter
 
-        judge_configured = build_llm_adapter(find_and_load_config()) is not None
+        llm_adapter = build_llm_adapter(find_and_load_config())
         report = evaluate_contract(
-            contract, response_text, judge_configured=judge_configured
+            contract, response_text, llm_adapter=llm_adapter, prompt=prompt
         )
     except FileNotFoundError as e:
         print(f"Error: {e}", file=err)

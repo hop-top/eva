@@ -66,6 +66,8 @@ output from `tlc flow exec`. See [architecture.md](architecture.md#standalone-cl
 | `--input` | **Required**. Path to the input file, or `-` to read from stdin. |
 | `--format` | Optional. `text` (default in TTY) or `json` (default in CI). |
 | `--quiet` | Optional. Suppress passing-evaluator output (text mode). |
+| `--prompt` | Optional. Request prompt text, given to judge evaluators. Not combinable with `--prompt-file`. |
+| `--prompt-file` | Optional. Read the request prompt from a file, or `-` for stdin (not when `--input -`). |
 
 ```bash
 # Recorded output → contract gate (CI)
@@ -73,16 +75,23 @@ eva run --contract contracts/my.yaml --input artifacts/response.json --format js
 
 # Pipe from stdin
 echo '{"status": "ok"}' | eva run --contract contracts/my.yaml --input -
+
+# Judge evaluators: pass the prompt the response answered
+eva run --contract contracts/my.yaml --input artifacts/response.txt \
+  --prompt "Summarize the refund policy in two sentences."
 ```
 
 ### Exit Codes:
 - `0`: All evaluators passed.
 - `1`: One or more evaluators failed (report on stderr).
 - `2`: Bad input: missing/malformed contract or input, or invalid flag combo
-  (e.g. mixing `--contract` with `--dataset`).
+  (e.g. mixing `--contract` with `--dataset`, `--prompt` together with
+  `--prompt-file`, `--prompt`/`--prompt-file` without `--contract`/`--input`, or
+  `--prompt-file -` together with `--input -`).
 
-Judge evaluators in a contract are not run in this mode: listed under `skipped` /
-`skipped_judge` with a reason; exit code unaffected.
+Judge evaluators run when a judge is configured and a prompt is given; see
+[llm-evaluators.md](llm-evaluators.md#judge-evaluators-in-contract-mode). Otherwise
+they are listed under `skipped_judge` with a reason; exit code unaffected.
 
 ### Output sinks (standalone mode):
 - On **pass**: report goes to **stdout** (pipe-safe).

@@ -42,9 +42,32 @@ With `base_url` set and no `api_key_env`, a placeholder key is sent; the ambient
 `OPENAI_API_KEY` is never forwarded to a custom endpoint. If `api_key_env` names
 an unset variable, `eva run --dataset` exits `2` with an error.
 
-Where judge evaluators run: `eva run --dataset` (all modes). `eva run --contract
---input` records them as `skipped` (`skipped_judge` in JSON; they need the request
-prompt, which a lone response artifact lacks). They are not run by the gateway.
+Where judge evaluators run: `eva run --dataset` (all modes) and `eva run --contract
+--input --prompt ...` (see below). They are not run by the gateway.
+
+### Judge evaluators in contract mode
+
+A lone response artifact has no request prompt, so pass it:
+`eva run --contract c.yaml --input response.txt --prompt "..."` (or `--prompt-file
+PATH`, `-` for stdin; not with `--input -`). With a judge configured and a prompt
+given, judge evaluators score `(prompt, response)` and count toward the verdict
+(mode, threshold, exit code) like any other evaluator.
+
+Recorded under `skipped_judge` instead (JSON) / `skipped: <name> (<reason>)` (text):
+
+- no judge configured: `no judge model configured` (prompt or not);
+- judge configured, no prompt: reason says to pass `--prompt` or `--prompt-file`;
+- evaluator needs inputs a contract run cannot supply: `tool_correctness`,
+  `argument_correctness`, `tool_use`, `step_efficiency` (tool events),
+  `plan_adherence` (planned steps), `rag:contextual_relevancy`,
+  `rag:contextual_precision`, `rag:contextual_recall`, `ragas` (retrieval context),
+  `content:goal_accuracy` (expected output, unless the contract sets
+  `expected_output`). Use dataset mode for these.
+
+A judge call that fails (endpoint unreachable, timeout) is reported as that
+evaluator failing with score `0.0` and reason `judge error: ...`; the command still
+completes. Judge output whose first line is not a number is scored `0.5` with the
+raw output as reason, as in dataset mode.
 
 Cost note: each Tier 2 evaluator = 1 LLM call per test case. Use `mode: warn` during
 development; switch to `threshold` or `binary` in CI.
