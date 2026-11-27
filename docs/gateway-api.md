@@ -326,7 +326,8 @@ The command-result shape (`exit_code`, `stdout`, `stderr`; see
 [Contracts for CLI output](contract-yaml-reference.md#contracts-for-cli-output))
 and the `exit_code` alias for the `status_code` evaluator
 ([reference](evaluators-reference.md#status_code--exit_code)) are stable for
-callers. Both are used by `eva run --contract` on a saved result.
+callers. Both are used by `eva run --contract` on a saved result and by
+[`POST /v1/contract/evaluate`](#post-v1contractevaluate).
 
 ---
 
