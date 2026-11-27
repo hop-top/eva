@@ -81,6 +81,9 @@ echo '{"status": "ok"}' | eva run --contract contracts/my.yaml --input -
 - `2`: Bad input: missing/malformed contract or input, or invalid flag combo
   (e.g. mixing `--contract` with `--dataset`).
 
+Judge evaluators in a contract are not run in this mode: listed under `skipped` /
+`skipped_judge` with a reason; exit code unaffected.
+
 ### Output sinks (standalone mode):
 - On **pass**: report goes to **stdout** (pipe-safe).
 - On **fail**: report goes to **stderr**; stdout stays empty.
@@ -114,5 +117,6 @@ Eva can be configured using environment variables in your `.env` file or exporte
 | Variable | Description | Default |
 |---|---|---|
 | `EVA_STORAGE` | Connection string for results storage. | `sqlite:///.eva/state.db` |
-| `EVA_JUDGE_MODEL` | LLM model to use for Tier 2 evaluators. | `openai/gpt-4o-mini` |
-| `OPENAI_API_KEY` | API key for Tier 2 (LLM) evaluations. | `None` |
+| `EVA_JUDGE_MODEL` | LLM model for Tier 2 evaluators (overrides `judge.model` in `eva.yaml`). Unset: judge evaluators are skipped with a reason. | `None` |
+| `EVA_JUDGE_BASE_URL` | OpenAI-compatible endpoint for the judge, e.g. a self-hosted server (overrides `judge.base_url`). See [llm-evaluators.md](llm-evaluators.md#self-hosted-endpoint). | `None` |
+| `OPENAI_API_KEY` | API key for hosted OpenAI Tier 2 models. Not sent to a custom `base_url`; use `judge.api_key_env`. | `None` |

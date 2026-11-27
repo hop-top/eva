@@ -110,7 +110,9 @@ Full reference: [docs/dataset-reference.md](docs/dataset-reference.md).
   shareable, composable.
 - **Evaluators** — pluggable checks. Deterministic: `contains`, `regex`,
   `json_schema_valid`, `no_pii`, `exact_match`, `final_answer`, ... ; LLM-judge:
-  `relevance`, `hallucination`, ... (need `EVA_JUDGE_MODEL`). Code:
+  `relevance`, `hallucination`, ... (need a judge: `EVA_JUDGE_MODEL` or `judge.model`;
+  self-hosted OpenAI-compatible via `judge.base_url`, see
+  [llm-evaluators.md](docs/llm-evaluators.md)). Code:
   `code_block_runs` only **parses** fenced blocks (python/json/yaml/sh);
   `code_test_passes` and `code_tests` **execute** the generated code
   (see [evaluators-reference.md](docs/evaluators-reference.md)).

@@ -103,6 +103,31 @@ retry_policy:
 
 ---
 
+## Judge (`eva.yaml`)
+
+Model for Tier 2 (LLM-judge) evaluators, read by `eva run --dataset`.
+
+```yaml
+judge:
+  model: openai/my-judge-model        # LiteLLM model id; unset = judge evaluators skipped
+  base_url: http://localhost:11434/v1 # OpenAI-compatible endpoint (self-hosted, proxy)
+  api_key_env: MY_JUDGE_KEY           # NAME of the env var holding the key
+  timeout_s: 60                       # per-request timeout, seconds
+  params: {}                          # extra LiteLLM kwargs (e.g. temperature)
+```
+
+| Key | Env override | Description |
+|-----|--------------|-------------|
+| `model` | `EVA_JUDGE_MODEL` | LiteLLM model id. None configured: judge evaluators are skipped with a reason, run not failed. |
+| `base_url` | `EVA_JUDGE_BASE_URL` | OpenAI-compatible endpoint. Without `api_key_env`, a placeholder key is sent (ambient `OPENAI_API_KEY` is not forwarded). |
+| `api_key_env` | | Env var NAME holding the key; never put the key in the file. Unset variable: exit `2`. |
+| `timeout_s` | | Per-request timeout, seconds. |
+| `params` | | Extra kwargs passed to LiteLLM. |
+
+See [llm-evaluators.md](llm-evaluators.md).
+
+---
+
 ## JSONL Dataset
 
 Alternative to YAML for data-science workflows.
@@ -124,7 +149,8 @@ Alternative to YAML for data-science workflows.
 | Variable           | Default                     | Description                     |
 |--------------------|-----------------------------|---------------------------------|
 | `EVA_STORAGE`      | `sqlite:///.eva/state.db`   | Storage backend connection URL. |
-| `EVA_JUDGE_MODEL`  | `openai/gpt-4o-mini`        | LLM used for Tier 2 evaluators. |
-| `OPENAI_API_KEY`   | _(none)_                    | Required for LLM-as-judge runs. |
+| `EVA_JUDGE_MODEL`  | _(none)_                    | LLM used for Tier 2 evaluators; overrides `judge.model`. |
+| `EVA_JUDGE_BASE_URL` | _(none)_                  | OpenAI-compatible judge endpoint; overrides `judge.base_url`. |
+| `OPENAI_API_KEY`   | _(none)_                    | Key for hosted OpenAI judge models (LiteLLM default). Not used with `judge.base_url`. |
 
 Place in `.env` at project root; Eva loads it automatically via `python-dotenv`.

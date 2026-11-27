@@ -116,6 +116,10 @@ def build_vision_message(text: str, image_url: str) -> dict:
     }
 
 
+class JudgeConfigError(ValueError):
+    """The judge is configured but cannot be built (e.g. key env var unset)."""
+
+
 def build_llm_adapter(config: Any | None = None) -> "LiteLLMAdapter | None":
     """Construct the judge adapter from env / eva.yaml, or None when unconfigured.
 
@@ -123,10 +127,34 @@ def build_llm_adapter(config: Any | None = None) -> "LiteLLMAdapter | None":
     EvaConfig. Returns None cleanly when neither is set — callers treat that
     as "judge evaluators unavailable" and skip them with a reason instead of
     failing the run.
+
+    Endpoint settings map onto LiteLLM kwargs: ``EVA_JUDGE_BASE_URL`` /
+    ``judge.base_url`` -> ``api_base``; the env var named by
+    ``judge.api_key_env`` -> ``api_key``; ``judge.timeout_s`` -> ``timeout``.
+    Raises JudgeConfigError when ``api_key_env`` names an unset variable.
     """
     judge = getattr(config, "judge", None)
     model = os.environ.get("EVA_JUDGE_MODEL") or getattr(judge, "model", None)
     if not model:
         return None
-    params = dict(getattr(judge, "params", None) or {})
-    return LiteLLMAdapter(model=model, **params)
+    kwargs = dict(getattr(judge, "params", None) or {})
+    base_url = os.environ.get("EVA_JUDGE_BASE_URL") or getattr(judge, "base_url", None)
+    if base_url:
+        kwargs["api_base"] = base_url
+    key_env = getattr(judge, "api_key_env", None)
+    if base_url and not key_env:
+        # Custom endpoint without a named key: never fall back to the ambient
+        # OPENAI_API_KEY (would leak to a third-party host); send a placeholder
+        # so keyless local servers still work.
+        kwargs.setdefault("api_key", "none")
+    if key_env:
+        key = os.environ.get(key_env)
+        if not key:
+            raise JudgeConfigError(
+                f"judge.api_key_env {key_env!r} is not set in the environment"
+            )
+        kwargs["api_key"] = key
+    timeout_s = getattr(judge, "timeout_s", None)
+    if timeout_s is not None:
+        kwargs["timeout"] = timeout_s
+    return LiteLLMAdapter(model=model, **kwargs)

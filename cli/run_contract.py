@@ -46,6 +46,8 @@ class ContractRunReport:
     duration_ms: int
     outcomes: list[EvaluatorOutcome] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
+    # judge-based evaluators not run, as "<name>: <reason>"
+    skipped_judge: list[str] = field(default_factory=list)
 
     def to_json(self) -> str:
         return json.dumps(
@@ -66,6 +68,7 @@ class ContractRunReport:
                     for o in self.outcomes
                 ],
                 "skipped": self.skipped,
+                "skipped_judge": self.skipped_judge,
             },
             indent=2,
         )
@@ -112,11 +115,14 @@ def _passed(score: float, mode: str, min_score: float) -> bool:
     return score == 1.0
 
 
-def evaluate_contract(contract_path: Path, response_text: str) -> ContractRunReport:
+def evaluate_contract(
+    contract_path: Path, response_text: str, judge_configured: bool = False
+) -> ContractRunReport:
     """Run all evaluators in `contract_path` against `response_text`.
 
     Returns a ContractRunReport with one outcome per recognised evaluator.
-    Unknown evaluators (no factory) are recorded under `skipped`.
+    Unknown evaluators (no factory) are recorded under `skipped`; judge-based
+    evaluators, which need a model, under `skipped_judge` with a reason.
     """
     # YAMLError → ValueError so callers see a uniform "bad input" exception
     # (load_contract lets YAMLError bubble; CLI layer maps ValueError → exit 2).
@@ -131,6 +137,7 @@ def evaluate_contract(contract_path: Path, response_text: str) -> ContractRunRep
 
     outcomes: list[EvaluatorOutcome] = []
     skipped: list[str] = []
+    skipped_judge: list[str] = []
     overall_pass = True
 
     # One evaluator per ref (duplicate names with distinct configs supported —
@@ -142,10 +149,19 @@ def evaluate_contract(contract_path: Path, response_text: str) -> ContractRunRep
         if factory is None:
             skipped.append(ref.name)
             continue
-        # LLM adapter wiring to CLI is a follow-up — pass None for now.
-        # LLM-judge factories raise ValueError if invoked here without an
-        # adapter (see core/evaluators/builtin.py:_require_llm).
-        ev = factory(ref.__pydantic_extra__ or {}, None)
+        # Judge-based factories raise ValueError without an adapter (see
+        # core/evaluators/builtin.py:_require_llm): record a skip, not an error.
+        try:
+            ev = factory(ref.__pydantic_extra__ or {}, None)
+        except ValueError:
+            reason = (
+                "judge evaluators are not supported with --contract/--input "
+                "(no request prompt)"
+                if judge_configured
+                else "no judge model configured"
+            )
+            skipped_judge.append(f"{ref.name}: {reason}")
+            continue
         t0 = time.monotonic()
         score: Score = ev.run(response_text)
         dur_ms = int((time.monotonic() - t0) * 1000)
@@ -171,6 +187,7 @@ def evaluate_contract(contract_path: Path, response_text: str) -> ContractRunRep
         duration_ms=total_ms,
         outcomes=outcomes,
         skipped=skipped,
+        skipped_judge=skipped_judge,
     )
 
 
@@ -188,6 +205,9 @@ def _format_text(report: ContractRunReport, quiet: bool) -> str:
             lines.append(f"    reason: {o.reason}")
     if report.skipped:
         lines.append(f"  skipped (no factory): {', '.join(report.skipped)}")
+    for entry in report.skipped_judge:
+        name, _, reason = entry.partition(": ")
+        lines.append(f"  skipped: {name} ({reason})")
     status = "PASSED" if report.passed else "FAILED"
     n_pass = sum(1 for o in report.outcomes if o.passed)
     lines.append(f"\n{status}  {n_pass}/{len(report.outcomes)} evaluators  ({report.duration_ms}ms)")
@@ -220,7 +240,13 @@ def run_contract_cli(
         return EXIT_BAD_INPUT
 
     try:
-        report = evaluate_contract(contract, response_text)
+        from core.config import find_and_load_config
+        from core.llm import build_llm_adapter
+
+        judge_configured = build_llm_adapter(find_and_load_config()) is not None
+        report = evaluate_contract(
+            contract, response_text, judge_configured=judge_configured
+        )
     except FileNotFoundError as e:
         print(f"Error: {e}", file=err)
         return EXIT_BAD_INPUT
