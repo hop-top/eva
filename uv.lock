@@ -332,97 +332,6 @@ wheels = [
 ]
 
 [[package]]
-name = "eva"
-version = "0.1.0a1"
-source = { editable = "." }
-dependencies = [
-    { name = "httpx" },
-    { name = "jsonschema" },
-    { name = "litellm" },
-    { name = "pluggy" },
-    { name = "python-dotenv" },
-    { name = "pyyaml" },
-    { name = "redis" },
-    { name = "rich" },
-    { name = "sqlmodel" },
-    { name = "typer" },
-]
-
-[package.optional-dependencies]
-all = [
-    { name = "anyio", extra = ["trio"] },
-    { name = "arq" },
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "litellm" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "redis" },
-    { name = "uvicorn", extra = ["standard"] },
-    { name = "watchfiles" },
-]
-dev = [
-    { name = "anyio", extra = ["trio"] },
-    { name = "httpx" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-]
-llm = [
-    { name = "litellm" },
-]
-redis = [
-    { name = "redis" },
-]
-server = [
-    { name = "arq" },
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "redis" },
-    { name = "uvicorn", extra = ["standard"] },
-    { name = "watchfiles" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "eva" },
-    { name = "respx" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "anyio", extras = ["trio"], marker = "extra == 'dev'", specifier = ">=4" },
-    { name = "arq", marker = "extra == 'server'", specifier = ">=0.27,<1" },
-    { name = "eva", extras = ["dev", "server", "redis", "llm"], marker = "extra == 'all'", editable = "." },
-    { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.111" },
-    { name = "httpx", specifier = ">=0.27" },
-    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
-    { name = "httpx", marker = "extra == 'server'", specifier = ">=0.27" },
-    { name = "jsonschema", specifier = ">=4.23" },
-    { name = "litellm", specifier = ">=1.82.0" },
-    { name = "litellm", marker = "extra == 'llm'", specifier = ">=1.82.0" },
-    { name = "pluggy", specifier = ">=1.4" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
-    { name = "python-dotenv", specifier = ">=1" },
-    { name = "pyyaml", specifier = ">=6" },
-    { name = "redis", specifier = ">=5" },
-    { name = "redis", marker = "extra == 'redis'", specifier = ">=5" },
-    { name = "redis", marker = "extra == 'server'", specifier = ">=5" },
-    { name = "rich", specifier = ">=13" },
-    { name = "sqlmodel", specifier = ">=0.0.21" },
-    { name = "typer", specifier = ">=0.12" },
-    { name = "uvicorn", extras = ["standard"], marker = "extra == 'server'", specifier = ">=0.30" },
-    { name = "watchfiles", marker = "extra == 'server'", specifier = ">=0.21" },
-]
-provides-extras = ["dev", "server", "redis", "llm", "all"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "eva", editable = "." },
-    { name = "respx", specifier = ">=0.22.0" },
-]
-
-[[package]]
 name = "fastapi"
 version = "0.135.1"
 source = { registry = "https://pypi.org/simple" }
@@ -772,6 +681,97 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/bc/1f/fb7375467e9adaa371cd617c2984fefe44bdce73add4c70b8dd8cab1b33a/hiredis-3.3.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:8e8a4b8540581dcd1b2b25827a54cfd538e0afeaa1a0e3ca87ad7126965981cc", size = 176127, upload-time = "2025-10-14T16:33:02.793Z" },
     { url = "https://files.pythonhosted.org/packages/66/14/0dc2b99209c400f3b8f24067273e9c3cb383d894e155830879108fb19e98/hiredis-3.3.0-cp314-cp314t-win32.whl", hash = "sha256:298593bb08487753b3afe6dc38bac2532e9bac8dcee8d992ef9977d539cc6776", size = 22024, upload-time = "2025-10-14T16:33:03.812Z" },
     { url = "https://files.pythonhosted.org/packages/b2/2f/8a0befeed8bbe142d5a6cf3b51e8cbe019c32a64a596b0ebcbc007a8f8f1/hiredis-3.3.0-cp314-cp314t-win_amd64.whl", hash = "sha256:b442b6ab038a6f3b5109874d2514c4edf389d8d8b553f10f12654548808683bc", size = 23808, upload-time = "2025-10-14T16:33:04.965Z" },
+]
+
+[[package]]
+name = "hop-top-eva"
+version = "0.1.0a1"
+source = { editable = "." }
+dependencies = [
+    { name = "httpx" },
+    { name = "jsonschema" },
+    { name = "litellm" },
+    { name = "pluggy" },
+    { name = "python-dotenv" },
+    { name = "pyyaml" },
+    { name = "redis" },
+    { name = "rich" },
+    { name = "sqlmodel" },
+    { name = "typer" },
+]
+
+[package.optional-dependencies]
+all = [
+    { name = "anyio", extra = ["trio"] },
+    { name = "arq" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "litellm" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "redis" },
+    { name = "uvicorn", extra = ["standard"] },
+    { name = "watchfiles" },
+]
+dev = [
+    { name = "anyio", extra = ["trio"] },
+    { name = "httpx" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+llm = [
+    { name = "litellm" },
+]
+redis = [
+    { name = "redis" },
+]
+server = [
+    { name = "arq" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "redis" },
+    { name = "uvicorn", extra = ["standard"] },
+    { name = "watchfiles" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "hop-top-eva" },
+    { name = "respx" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "anyio", extras = ["trio"], marker = "extra == 'dev'", specifier = ">=4" },
+    { name = "arq", marker = "extra == 'server'", specifier = ">=0.27,<1" },
+    { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.111" },
+    { name = "hop-top-eva", extras = ["dev", "server", "redis", "llm"], marker = "extra == 'all'", editable = "." },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
+    { name = "httpx", marker = "extra == 'server'", specifier = ">=0.27" },
+    { name = "jsonschema", specifier = ">=4.23" },
+    { name = "litellm", specifier = ">=1.82.0" },
+    { name = "litellm", marker = "extra == 'llm'", specifier = ">=1.82.0" },
+    { name = "pluggy", specifier = ">=1.4" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
+    { name = "python-dotenv", specifier = ">=1" },
+    { name = "pyyaml", specifier = ">=6" },
+    { name = "redis", specifier = ">=5" },
+    { name = "redis", marker = "extra == 'redis'", specifier = ">=5" },
+    { name = "redis", marker = "extra == 'server'", specifier = ">=5" },
+    { name = "rich", specifier = ">=13" },
+    { name = "sqlmodel", specifier = ">=0.0.21" },
+    { name = "typer", specifier = ">=0.12" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'server'", specifier = ">=0.30" },
+    { name = "watchfiles", marker = "extra == 'server'", specifier = ">=0.21" },
+]
+provides-extras = ["dev", "server", "redis", "llm", "all"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "hop-top-eva", editable = "." },
+    { name = "respx", specifier = ">=0.22.0" },
 ]
 
 [[package]]
