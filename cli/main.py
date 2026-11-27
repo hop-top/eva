@@ -372,11 +372,39 @@ def serve(
     ),
     reload: bool = typer.Option(False, help="Enable hot-reload (dev mode)"),
     workers: int = typer.Option(1, help="Number of uvicorn workers"),
+    no_auth: bool = typer.Option(
+        False,
+        "--no-auth",
+        help="Serve without API-key authentication (required when no key store "
+        "is configured via EVA_REDIS_URL)",
+    ),
 ) -> None:
     """Start the Eva gateway server."""
+    import os
     import uvicorn
-    from server.app import create_app
+    from cli.run_contract import EXIT_BAD_INPUT
+    from server.app import SERVE_CONTRACTS_DIR_ENV, create_app, create_serve_app
+    from server.auth import NO_AUTH_ENV, AuthNotConfiguredError, serve_auth_mode
     from server.contracts.registry import ContractRegistry
+
+    try:
+        mode = serve_auth_mode(no_auth)
+    except AuthNotConfiguredError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(EXIT_BAD_INPUT)
+
+    # The app is built in this process (single worker) or in child processes
+    # (workers > 1, reload); the env carries the choice to both. Set or clear
+    # explicitly so an inherited value cannot disagree with the flag.
+    if mode == "disabled":
+        os.environ[NO_AUTH_ENV] = "1"
+        typer.echo(
+            "Warning: --no-auth: gateway is UNAUTHENTICATED; every route is "
+            "open to anyone who can reach this port.",
+            err=True,
+        )
+    else:
+        os.environ.pop(NO_AUTH_ENV, None)
 
     registry = ContractRegistry()
     if contracts_dir.exists():
@@ -387,15 +415,20 @@ def serve(
             f"Warning: contracts directory '{contracts_dir}' not found — starting with empty registry"
         )
 
-    _app = create_app(registry=registry)
+    if reload or workers > 1:
+        # uvicorn requires an import string here; the app is built per process.
+        os.environ[SERVE_CONTRACTS_DIR_ENV] = str(contracts_dir.resolve())
+        uvicorn.run(
+            "server.app:create_serve_app",
+            factory=True,
+            host=host,
+            port=port,
+            workers=workers if not reload else 1,
+            reload=reload,
+        )
+        return
 
-    uvicorn.run(
-        _app,
-        host=host,
-        port=port,
-        workers=workers if not reload else 1,
-        reload=reload,
-    )
+    uvicorn.run(create_app(registry=registry), host=host, port=port)
 
 
 annotate_app = typer.Typer(help="Annotation commands.")

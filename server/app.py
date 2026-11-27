@@ -1,5 +1,7 @@
 # server/app.py — Eva Gateway FastAPI application
 from __future__ import annotations
+import os
+from pathlib import Path
 from typing import Callable, Sequence
 
 from fastapi import FastAPI
@@ -52,6 +54,24 @@ def create_app(
         _app.add_middleware(ApiKeyMiddleware)
 
     return _app
+
+
+# Internal handoff from `eva serve` to processes that build their own app
+# (uvicorn workers, reload subprocess). Set by the CLI; not a user setting.
+SERVE_CONTRACTS_DIR_ENV = "EVA_SERVE_CONTRACTS_DIR"
+
+
+def create_serve_app() -> FastAPI:
+    """App factory for `eva serve` worker/reload processes.
+
+    Uvicorn needs an import string (not an app object) for multiple workers
+    or reload; each such process calls this to build its own app.
+    """
+    registry = ContractRegistry()
+    contracts_dir = os.environ.get(SERVE_CONTRACTS_DIR_ENV, "")
+    if contracts_dir and Path(contracts_dir).exists():
+        registry.load_dir(Path(contracts_dir))
+    return create_app(registry=registry)
 
 
 app = create_app()
