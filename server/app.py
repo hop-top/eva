@@ -5,6 +5,7 @@ from typing import Callable, Sequence
 from fastapi import FastAPI
 from importlib.metadata import version, PackageNotFoundError
 from core.config import EvaConfig, find_and_load_config
+from server.auth import ApiKeyMiddleware, auth_enabled
 from server.contracts.registry import ContractRegistry
 from server.gateway.routes import router as gateway_router, set_registry, set_sample_rate
 
@@ -43,6 +44,12 @@ def create_app(
 
     for factory in middleware_factories or []:
         _app.add_middleware(factory)
+
+    # With a key store configured, API-key auth is applied here so no gateway
+    # route is reachable without it. Added last = outermost, so it runs before
+    # any factory-supplied middleware (e.g. per-key rate limiting).
+    if auth_enabled() and ApiKeyMiddleware not in (middleware_factories or []):
+        _app.add_middleware(ApiKeyMiddleware)
 
     return _app
 
