@@ -1,7 +1,7 @@
 """
 Integration tests — requires Postgres.
 Run: pytest --integration plugins/eva-postgres/tests/
-Needs psycopg2 (the URL pins the driver; SQLAlchemy 2.1 defaults bare postgresql:// to psycopg3).
+Needs psycopg2 (the adapter pins it for bare postgresql:// URLs; SQLAlchemy 2.1 would pick psycopg3).
 Docker: docker run -e POSTGRES_PASSWORD=eva -e POSTGRES_DB=eva_test -p 5432:5432 postgres:16-alpine
 """
 import os
@@ -12,7 +12,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from core.models import Run, Result, Score
 
-POSTGRES_URL = os.getenv("EVA_POSTGRES_URL", "postgresql+psycopg2://postgres:eva@localhost:5432/eva_test")
+POSTGRES_URL = os.getenv("EVA_POSTGRES_URL", "postgresql://postgres:eva@localhost:5432/eva_test")
 
 
 @pytest.mark.integration
@@ -49,6 +49,20 @@ def test_save_and_retrieve_run():
 
 
 @pytest.mark.integration
+def test_bare_postgresql_url_end_to_end():
+    from eva_postgres.adapter import PostgresStorageAdapter
+
+    bare = make_url(POSTGRES_URL).set(drivername="postgresql")
+    assert bare.drivername == "postgresql"
+    adapter = PostgresStorageAdapter(url=bare.render_as_string(hide_password=False))
+    adapter.setup()
+    adapter.save_run(_run("pg_bare_url", datetime(2026, 6, 15, 14, 30, tzinfo=timezone.utc)))
+
+    got = adapter.get_run("pg_bare_url")
+    assert got is not None and got.run_id == "pg_bare_url"
+
+
+@pytest.mark.integration
 def test_list_runs():
     from eva_postgres.adapter import PostgresStorageAdapter
 
@@ -56,6 +70,47 @@ def test_list_runs():
     adapter.setup()
     runs = adapter.list_runs(limit=10)
     assert isinstance(runs, list)
+
+
+def _urls_given_to_create_engine(monkeypatch, url):
+    """Build an adapter with create_engine stubbed; return the URL it was given."""
+    import eva_postgres.adapter as mod
+
+    seen = []
+    monkeypatch.setattr(mod, "create_engine", lambda u, **kw: seen.append(u))
+    mod.PostgresStorageAdapter(url=url)
+    return make_url(seen[0])
+
+
+def test_bare_postgresql_url_uses_psycopg2_engine():
+    from eva_postgres.adapter import PostgresStorageAdapter
+
+    adapter = PostgresStorageAdapter(url="postgresql://u:p@localhost/db")
+    assert adapter.engine.dialect.driver == "psycopg2"
+
+
+@pytest.mark.parametrize(
+    "driver", ["postgresql+psycopg2", "postgresql+psycopg", "postgresql+asyncpg"]
+)
+def test_explicit_driver_is_left_as_given(monkeypatch, driver):
+    given = f"{driver}://u:p@localhost/db"
+    assert _urls_given_to_create_engine(monkeypatch, given).drivername == driver
+
+
+def test_bare_url_keeps_credentials_and_query(monkeypatch):
+    given = make_url("postgresql://us%40r:p%3A%2Fw%40d%25@db.example:5433/eva")
+    given = given.update_query_dict(
+        {"options": "-c search_path=s -c timezone=UTC", "sslmode": "require"}
+    )
+    out = _urls_given_to_create_engine(
+        monkeypatch, given.render_as_string(hide_password=False)
+    )
+
+    assert out.drivername == "postgresql+psycopg2"
+    assert out.username == "us@r"
+    assert out.password == "p:/w@d%"
+    assert (out.host, out.port, out.database) == ("db.example", 5433, "eva")
+    assert dict(out.query) == dict(given.query)
 
 
 @pytest.fixture
@@ -68,7 +123,8 @@ def fresh_adapter():
     from eva_postgres.adapter import PostgresStorageAdapter
 
     schema = f"eva_tz_{uuid.uuid4().hex[:12]}"
-    admin = create_engine(POSTGRES_URL)
+    # Plain SQLAlchemy engine (not the adapter): name the driver explicitly.
+    admin = create_engine(make_url(POSTGRES_URL).set(drivername="postgresql+psycopg2"))
     with admin.begin() as conn:
         conn.execute(text(f"CREATE SCHEMA {schema}"))
     url = make_url(POSTGRES_URL).update_query_dict(

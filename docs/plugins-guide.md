@@ -37,6 +37,9 @@ adapter.save_run(run)
 run = adapter.get_run("run_id")
 ```
 
+The plugin uses psycopg2. A plain `postgresql://` URL is connected with it;
+a URL that names a driver (`postgresql+<driver>://`) is used as given.
+
 ### Environment
 
 No dedicated env var. Pass `url` directly, or read from `DATABASE_URL`:
