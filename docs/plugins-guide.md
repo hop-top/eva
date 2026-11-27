@@ -54,6 +54,31 @@ adapter = PostgresStorageAdapter(url=os.environ["DATABASE_URL"])
 Single table `eva_runs` with columns: `run_id`, `dataset`, `target`,
 `started_at`, `duration_ms`, `passed`, `results_json`.
 
+### Timestamps
+
+Run timestamps are stored and returned in UTC.
+
+Tables created with sqlmodel 0.0.45 or newer use `timestamp with time zone`
+for `started_at` and need nothing further. `setup()` only creates missing
+tables; it never alters an existing one, so a table created earlier may still
+have `timestamp without time zone`. Check:
+
+```sql
+SELECT data_type FROM information_schema.columns
+WHERE table_name = 'eva_runs' AND column_name = 'started_at';
+```
+
+For a `timestamp without time zone` column, the connection's session time zone
+must be UTC. Otherwise values are stored as local wall-clock time and read
+back as UTC, so the instant is off by the session's offset. Force UTC for the
+connection with a URL option:
+
+```python
+adapter = PostgresStorageAdapter(
+    url="postgresql://user:pass@host/dbname?options=-c%20timezone=UTC"
+)
+```
+
 ---
 
 ## eva-otlp
