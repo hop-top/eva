@@ -13,6 +13,7 @@ Checks if the agent's response contains a specific substring.
 |---|---|---|---|
 | `substring` | `string` | **Yes** | The text to search for. |
 | `case_sensitive` | `boolean` | No | Whether the search is case-sensitive. Default: `true`. |
+| `field` | `string` | No | Top-level field of a JSON object input to search instead of the whole input. Scores 0.0 if the input is not a JSON object, the field is missing, or its value is not a string. |
 
 ### Example Contract Usage:
 ```yaml
@@ -32,6 +33,7 @@ Matches the agent's response against a regular expression pattern.
 | Property | Type | Required | Description |
 |---|---|---|---|
 | `pattern` | `string` | **Yes** | The regular expression to match. |
+| `field` | `string` | No | Top-level field of a JSON object input to match instead of the whole input. Scores 0.0 if the input is not a JSON object, the field is missing, or its value is not a string. |
 
 ### Example Contract Usage:
 ```yaml
