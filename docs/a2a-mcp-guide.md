@@ -131,8 +131,8 @@ retry_policy:
 4. Validate
    eva contract validate ./contracts/<name>.yaml
 
-5. Serve
-   eva serve --contracts-dir ./contracts
+5. Serve  (--no-auth = no API-key check; local use, see security.md)
+   eva serve --no-auth --contracts-dir ./contracts
 
 6. Invoke
    POST /v1/contract/invoke  {"contract": "<name>", "body": {...}}
@@ -154,8 +154,8 @@ retry_policy:
 4. Validate
    eva contract validate ./contracts/<name>.yaml
 
-5. Serve
-   eva serve --contracts-dir ./contracts
+5. Serve  (--no-auth = no API-key check; local use, see security.md)
+   eva serve --no-auth --contracts-dir ./contracts
 
 6. Invoke
    POST /v1/contract/invoke  {"contract": "<name>", "body": {...}}

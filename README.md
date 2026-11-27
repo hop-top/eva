@@ -71,11 +71,13 @@ eva run my-contract.yaml
 **3. Start the gateway server:**
 
 ```sh
-eva serve
+eva serve --no-auth
 ```
 
-The gateway listens on `http://localhost:8000` and proxies requests through contract
-enforcement before forwarding to the upstream agent.
+The gateway listens on `http://localhost:8080` and proxies requests through contract
+enforcement before forwarding to the upstream agent. `--no-auth` serves without
+API-key authentication (fine locally); without it `eva serve` needs a key store
+(`EVA_REDIS_URL`, see [Security](docs/security.md)).
 
 ## Grading models (chat targets)
 

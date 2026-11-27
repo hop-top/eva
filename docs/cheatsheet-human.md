@@ -85,10 +85,10 @@ tests:
 ## Gateway Server
 
 ```bash
-eva serve                                            # :8080, contracts/ dir
-eva serve --port 9000 --contracts-dir ./contracts
-eva serve --reload                                   # dev hot-reload (workers=1)
-eva serve --workers 4                                # production
+eva serve --no-auth                                  # :8080, contracts/ dir, no API-key auth
+eva serve --no-auth --port 9000 --contracts-dir ./contracts
+eva serve --no-auth --reload                         # dev hot-reload (workers=1)
+EVA_REDIS_URL=redis://localhost:6379/0 eva serve --workers 4   # production: key store, auth on
 ```
 
 Health probe: `curl http://localhost:8080/health`

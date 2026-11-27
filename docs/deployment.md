@@ -46,6 +46,8 @@ docker run -p 8080:8080 \
   eva-gateway
 ```
 
+`eva serve` refuses to start without a key store (`EVA_REDIS_URL`, set above) unless `--no-auth` is passed; do not pass `--no-auth` on a reachable network. See [Security](security.md).
+
 ---
 
 ## Docker Compose
