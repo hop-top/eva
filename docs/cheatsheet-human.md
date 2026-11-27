@@ -7,9 +7,9 @@ Quick reference for daily eval + gateway use. Scannable in 30 seconds.
 ## Install
 
 ```bash
-pip install eva             # core + CLI
-pip install eva[server]     # + gateway server
-uv add eva[server]          # preferred
+pip install hop-top-eva             # core + CLI
+pip install hop-top-eva[server]     # + gateway server
+uv add hop-top-eva[server]          # preferred
 ```
 
 ---

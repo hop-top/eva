@@ -9,7 +9,7 @@ Get up and running with Eva in under 5 minutes. This guide will walk you through
 Install Eva using your favorite Python package manager.
 
 ```bash
-pip install eva-core
+pip install hop-top-eva
 ```
 
 ---

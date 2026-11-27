@@ -11,7 +11,7 @@ Token provisioned via admin API — see [hop-top/eva-pkg](https://github.com/hop
 ## Install
 
 ```sh
-pip install eva \
+pip install hop-top-eva \
   --index-url https://<token>@eva-pkg.ideacrafters-llc.workers.dev/simple/ \
   --extra-index-url https://pypi.org/simple/
 ```

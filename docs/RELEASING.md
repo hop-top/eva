@@ -30,7 +30,7 @@ Configure trusted publisher in PyPI project settings:
 
 ## Rollback
 
-- Yank from PyPI: `uv run twine yank eva==X.Y.ZaN`
+- Yank from PyPI: `uv run twine yank hop-top-eva==X.Y.ZaN`
 - Delete tag locally: `git tag -d vX.Y.ZaN`
 - Delete tag remotely: `git push origin :refs/tags/vX.Y.ZaN`
 

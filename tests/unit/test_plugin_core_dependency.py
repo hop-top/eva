@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import tomllib
 from pathlib import Path
 
@@ -47,3 +48,35 @@ def test_plugin_specifier_admits_root_version(path: Path) -> None:
         assert req.specifier.contains(version, prereleases=True), (
             f"{req} excludes current version {version}"
         )
+
+
+# Install instructions that users and the published action follow. Planning
+# and research notes under docs/ subdirectories are historical and excluded.
+INSTALL_DOC_FILES = sorted(
+    [ROOT / "action.yml", ROOT / "README.md", *ROOT.glob("docs/*.md")]
+)
+_STALE_INSTALL = re.compile(
+    r"(?:pip install|uv add|twine yank)"  # also matches `uv pip install`
+    r"(?:\s+--?[\w-]+)*"  # flags such as --system
+    r"\s+[\"']?(eva(?:-core)?)(?=[\[=\s\"'\\]|$)",
+    re.MULTILINE,
+)
+
+
+def test_install_doc_files_discovered() -> None:
+    assert (ROOT / "action.yml") in INSTALL_DOC_FILES
+    assert len(INSTALL_DOC_FILES) > 2
+
+
+@pytest.mark.parametrize(
+    "path", INSTALL_DOC_FILES, ids=lambda p: str(p.relative_to(ROOT))
+)
+def test_install_instructions_name_root_distribution(path: Path) -> None:
+    stale = [
+        f"{path.relative_to(ROOT)}:{path.read_text()[: m.start()].count(chr(10)) + 1}"
+        for m in _STALE_INSTALL.finditer(path.read_text())
+    ]
+    assert not stale, (
+        f"install lines name a distribution other than "
+        f"{ROOT_PROJECT['name']!r}: {stale}"
+    )

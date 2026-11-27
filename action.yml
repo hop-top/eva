@@ -52,9 +52,9 @@ runs:
       shell: bash
       run: |
         if [ "${{ inputs.eva-version }}" = "latest" ]; then
-          uv pip install --system "eva[server]"
+          uv pip install --system "hop-top-eva[server]"
         else
-          uv pip install --system "eva[server]==${{ inputs.eva-version }}"
+          uv pip install --system "hop-top-eva[server]==${{ inputs.eva-version }}"
         fi
 
     - name: Validate contracts

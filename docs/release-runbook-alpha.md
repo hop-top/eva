@@ -74,7 +74,7 @@ Verify package live:
 
 ```
 pip index versions eva          # shows 0.1.0a1
-pip install eva==0.1.0a1        # smoke install
+pip install hop-top-eva==0.1.0a1        # smoke install
 python -c "import eva; print(eva.__version__)"
 ```
 
@@ -97,7 +97,7 @@ Title: Eva 0.1.0a1 — Public Alpha Available
 
 Eva 0.1.0a1 is live on PyPI.
 
-pip install eva[server]
+pip install hop-top-eva[server]
 
 What's included: behavioral contract enforcement, evaluators (exact-match,
 regex, semantic, LLM-judge), FastAPI gateway, CLI, plugin system.

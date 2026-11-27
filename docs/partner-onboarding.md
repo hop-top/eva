@@ -17,7 +17,7 @@ Token provided by hop-top team. Contact eva@hop.top to request access.
 ## Install Eva
 
 ```sh
-pip install eva \
+pip install hop-top-eva \
   --index-url https://<your-token>@eva-pkg.ideacrafters-llc.workers.dev/simple/ \
   --extra-index-url https://pypi.org/simple/
 ```
