@@ -46,7 +46,7 @@ evaluator catalogue.
 1. **Dataset mode** (existing): `eva run --dataset suite.yaml --target <url>`
    loads a dataset of test cases, calls a live agent for each, evaluates the
    responses. Exit `0` on full pass, `1` on any failure.
-2. **Standalone contract mode** (new — T-0258): `eva run --contract c.yaml
+2. **Standalone contract mode**: `eva run --contract c.yaml
    --input data.json` evaluates a single response artifact against a contract.
    No agent call, no gateway. Intended for CI smoke and local dev.
 
@@ -97,7 +97,7 @@ to its factory — so config fields survive.
 The standalone runner takes the agent's response **as a file**. That makes it
 ideal for:
 
-* CI gates over flow recordings (e.g. `tlc flow exec` artifacts)
+* CI gates over flow recordings (e.g. the output of a `flo` exec step)
 * re-checking past invocations against an updated contract
 * deterministic smoke tests where the producer is a CLI, not an HTTP service
 

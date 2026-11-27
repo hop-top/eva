@@ -108,11 +108,11 @@ for configuration, what is skipped and why, and retry cost.
 
 ---
 
-## Contracts for exec-step output (`tlc flow exec`)
+## Contracts for exec-step output (`flo` exec step)
 
 Contracts can validate any text/JSON artifact — not just live agent
 responses. A common pattern is gating CI smoke tests on the recorded output
-of a CLI step (see [tlc flow exec](https://github.com/hop-top/tlc) and the
+of a CLI step (see [flo](https://github.com/hop-top/flo) and the
 [smoke-testing cookbook](smoke-testing-cli-with-flow-exec.md)).
 
 The input to the contract is the exec step's structured output, typically
