@@ -53,6 +53,23 @@ def _make_state_adapter() -> StateAdapter:
     return _NullStateAdapter()
 
 
+def auth_enabled() -> bool:
+    """True when a key store is configured (EVA_REDIS_URL set)."""
+    return bool(os.environ.get("EVA_REDIS_URL", ""))
+
+
+def _unauthorized(message: str) -> JSONResponse:
+    """401 in the gateway's structured-error shape (plus legacy `detail`)."""
+    return JSONResponse(
+        status_code=401,
+        content={
+            "detail": message,
+            "eva_status": "unauthorized",
+            "violations": [{"field": "X-Eva-Key", "message": message}],
+        },
+    )
+
+
 # Module-level singleton — patch this in tests: `patch("server.auth.state_adapter")`
 state_adapter: StateAdapter = _make_state_adapter()
 
@@ -66,17 +83,11 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
 
         key = request.headers.get("X-Eva-Key")
         if not key:
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Missing X-Eva-Key header"},
-            )
+            return _unauthorized("Missing X-Eva-Key header")
 
         exists = await state_adapter.get(f"eva:apikey:{key}")
         if not exists:
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Invalid API key"},
-            )
+            return _unauthorized("Invalid API key")
 
         # Attach to request.state for downstream use (e.g. rate limiting)
         request.state.api_key = key
