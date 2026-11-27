@@ -118,8 +118,10 @@ called and no gateway is involved.
 Contract mode reads the contract's `name` and `evaluators`. `provider` must
 be present (the contract schema requires it) but is never contacted, and
 `request_schema`, `consumer` and `retry_policy` are not consulted. The
-[gateway](gateway-api.md) is different: `POST /v1/contract/invoke` forwards
-the request `body` to the contract's `provider` URL and evaluates the reply.
+[gateway](gateway-api.md) offers both: `POST /v1/contract/invoke` forwards
+the request `body` to the contract's `provider` URL and evaluates the reply,
+while [`POST /v1/contract/evaluate`](gateway-api.md#post-v1contractevaluate)
+scores output you already hold, like contract mode over HTTP.
 
 For plain text output, use `regex` and `contains` over the whole input:
 
