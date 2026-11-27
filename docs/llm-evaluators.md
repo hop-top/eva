@@ -40,10 +40,10 @@ judge:
 Env equivalents: `EVA_JUDGE_MODEL`, `EVA_JUDGE_BASE_URL` (both override `eva.yaml`).
 With `base_url` set and no `api_key_env`, a placeholder key is sent; the ambient
 `OPENAI_API_KEY` is never forwarded to a custom endpoint. If `api_key_env` names
-an unset variable, `eva run --dataset` exits `2` with an error.
+an unset variable, `eva run --dataset` and `eva serve` exit `2` with an error.
 
-Where judge evaluators run: `eva run --dataset` (all modes) and `eva run --contract
---input --prompt ...` (see below). They are not run by the gateway.
+Where judge evaluators run: `eva run --dataset` (all modes), `eva run --contract
+--input --prompt ...` and the gateway (see below).
 
 ### Judge evaluators in contract mode
 
@@ -68,6 +68,49 @@ A judge call that fails (endpoint unreachable, timeout) is reported as that
 evaluator failing with score `0.0` and reason `judge error: ...`; the command still
 completes. Judge output whose first line is not a number is scored `0.5` with the
 raw output as reason, as in dataset mode.
+
+### Judge evaluators in the gateway
+
+`POST /v1/contract/invoke` and `POST /v1/proxy` run judge evaluators too.
+
+**Configuration.** One judge per gateway process, built at start from the same
+settings as dataset and contract mode (`EVA_JUDGE_MODEL` / `EVA_JUDGE_BASE_URL`
+env, else the `judge:` section of `eva.yaml` in the working directory). No
+per-request or per-tenant judge. A bad judge configuration (for example
+`api_key_env` naming an unset variable) stops `eva serve` at start, see
+[serve-reference](serve-reference.md#judge-configuration).
+
+**Prompt.** The contract names the request-body field that holds the prompt:
+`prompt_field: question` (see [contract reference](contract-yaml-reference.md#judge-prompt-prompt_field)).
+On `/v1/proxy` the same key is the optional `prompt_field` request field. Judge
+evaluators score that field's string value against the agent's response.
+
+**Skips.** A judge evaluator that cannot run is skipped, never a `500`; the
+request proceeds on the remaining evaluators. First matching reason wins:
+
+1. `no judge model configured`;
+2. needs inputs the gateway cannot supply: `tool_correctness`,
+   `argument_correctness`, `tool_use`, `step_efficiency` (tool events),
+   `plan_adherence` (planned steps), `rag:contextual_relevancy`,
+   `rag:contextual_precision`, `rag:contextual_recall`, `ragas` (retrieval
+   context), `content:goal_accuracy` (expected output, unless the evaluator
+   config sets `expected_output`);
+3. `judge evaluators need the request prompt: set prompt_field`;
+4. the request body lacks the `prompt_field` key, or its value is not a string.
+
+Skips are listed in the response as `skipped: [{"evaluator", "reason"}]`, on `200`
+and `422` bodies (see [gateway API](gateway-api.md#skipped-evaluators)). A skipped
+evaluator does not count toward the verdict.
+
+**Failures.** A judge call that fails (endpoint unreachable, timeout, HTTP error)
+is that evaluator failing with score `0.0` and reason `judge error: <Type>: <first
+line>`; with `mode: warn` it does not block. The gateway does not answer `500`.
+Unparseable judge output keeps the dataset-mode behaviour (score `0.5`).
+
+**Cost and latency.** Each judge evaluator is one model call per attempt, and
+each retry attempt re-evaluates against that attempt's response. With
+`max_retries: 2` a contract with 2 judge evaluators makes up to 6 judge calls
+for one request, and the caller waits for them.
 
 Cost note: each Tier 2 evaluator = 1 LLM call per test case. Use `mode: warn` during
 development; switch to `threshold` or `binary` in CI.

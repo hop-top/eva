@@ -83,7 +83,8 @@ X-Eva-Key: <key>
   ],
   "max_retries": 0,
   "hint":        "<string|null>",
-  "backoff_ms":  0
+  "backoff_ms":  0,
+  "prompt_field": "<string|null>"
 }
 ```
 
@@ -95,8 +96,11 @@ X-Eva-Key: <key>
 | `max_retries` | int | no | `0` | Retry attempts on violation |
 | `hint` | str | no | `null` | Injected as `_eva_hint` on retries |
 | `backoff_ms` | int | no | `0` | Sleep between retries (ms) |
+| `prompt_field` | str | no | `null` | Top-level key of `body` holding the prompt for judge evaluators |
 
 **Evaluator `name` values (built-in):** `contains`, `regex`, `json_schema_valid`, `no_pii`.
+LLM-judge evaluators (for example `relevance`) also work when a judge is
+configured; see [Judge evaluators in the gateway](llm-evaluators.md#judge-evaluators-in-the-gateway).
 
 #### Response — pass (`200`)
 
@@ -235,6 +239,33 @@ returned as a string otherwise. `trace_id` is `null` when tracing is off.
 ```
 
 `violations` has one entry per failed evaluator; `reason` may be `null`.
+
+#### Skipped evaluators
+
+Judge evaluators that cannot run on a request are skipped (see
+[Judge evaluators in the gateway](llm-evaluators.md#judge-evaluators-in-the-gateway)).
+When at least one was skipped, both the `200` and the `422` body carry a
+`skipped` list; when nothing was skipped the key is absent, so responses for
+contracts without judge evaluators are unchanged.
+
+```json
+{
+  "eva_status": "pass",
+  "attempts": 1,
+  "response": {"reply": "hello world"},
+  "skipped": [
+    {"evaluator": "relevance", "reason": "request body has no field 'question'"}
+  ],
+  "request_id": "<uuid>",
+  "trace_id": null
+}
+```
+
+A `422` body has the same `skipped` entry next to `violations`. The reasons are:
+`no judge model configured`; `needs <inputs>, which the gateway cannot supply
+(use dataset mode)`; `judge evaluators need the request prompt: set prompt_field`;
+`request body has no field '<name>'`; `request body field '<name>' is not a string`.
+The `400`, `404` and `503` bodies never carry `skipped`.
 
 A request whose JSON envelope is malformed (for example `contract` missing)
 is also rejected with `422`, but in FastAPI's shape, with no `eva_status`:

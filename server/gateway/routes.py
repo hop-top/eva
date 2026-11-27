@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from core.evaluators.builtin import BUILTIN_EVALUATOR_FACTORIES
+from core.evaluators.judge_support import build_judge, judge_skip_reason
 from core.costing import estimate_cost
 from core.events import EventSink, NullEventSink
 from core.models import (
@@ -16,7 +17,7 @@ from core.models import (
     RetryPolicy, EvaluatorRef, UsageRecord,
 )
 from server.gateway.proxy import forward_request, ProxyError
-from server.gateway.evaluator import evaluate_response
+from server.gateway.evaluator import JudgeJob, evaluate_response
 from server.gateway.retry import retry_with_hint, RetryExhausted
 
 def _capture_usage(
@@ -63,6 +64,7 @@ router = APIRouter(prefix="/v1")
 
 _registry = None
 _storage = None
+_judge_adapter = None  # one judge per process; None = judge evaluators skip
 _sample_rate: float = 1.0  # fraction of requests for which artifact writes occur
 
 
@@ -75,6 +77,12 @@ def set_storage(storage) -> None:
     """Wire a SqliteStorage (or any compatible) instance for invocation persistence."""
     global _storage
     _storage = storage
+
+
+def set_judge_adapter(adapter) -> None:
+    """Wire the process-wide judge adapter (None = no judge configured)."""
+    global _judge_adapter
+    _judge_adapter = adapter
 
 
 def set_sample_rate(rate: float) -> None:
@@ -109,18 +117,75 @@ class ProxyRequest(BaseModel):
     max_retries: int = 0
     hint: str | None = None
     backoff_ms: int = 0
+    prompt_field: str | None = None
 
 
 def _build_evaluator_map(specs: list[EvaluatorSpec]) -> dict:
+    """Sync-only evaluator map (queue tasks): no judge, no skipping.
+
+    Judge factories raise a clear ValueError here (see
+    core/evaluators/builtin.py:_require_llm). Request handling uses
+    `_build_request_evaluators`, which runs or skips them.
+    """
     evaluator_map = {}
     for spec in specs:
         factory = _BUILTIN_EVALUATOR_FACTORIES.get(spec.name)
         if factory:
-            # LLM adapter wiring to gateway is a follow-up — pass None for now.
-            # LLM-judge factories will raise a clear ValueError if invoked here
-            # without an adapter (see core/evaluators/builtin.py:_require_llm).
             evaluator_map[spec.name] = factory(spec.config, None)
     return evaluator_map
+
+
+NO_PROMPT_FIELD_REASON = "judge evaluators need the request prompt: set prompt_field"
+_RUNNER = "the gateway"
+
+
+def _prompt_skip(prompt_field: str | None, body: dict) -> tuple[str | None, str | None]:
+    """``(prompt, None)`` or ``(None, skip reason)`` for judge evaluators."""
+    if not prompt_field:
+        return None, NO_PROMPT_FIELD_REASON
+    if prompt_field not in body:
+        return None, f"request body has no field '{prompt_field}'"
+    value = body[prompt_field]
+    if not isinstance(value, str):
+        return None, f"request body field '{prompt_field}' is not a string"
+    return value, None
+
+
+def _build_request_evaluators(
+    specs: list[EvaluatorSpec],
+    prompt_field: str | None = None,
+    body: dict | None = None,
+) -> tuple[dict, list[dict]]:
+    """Build the evaluator map and the judge evaluators skipped for this request.
+
+    Judge evaluators run when a judge is configured, they need nothing beyond
+    (prompt, response) and ``body[prompt_field]`` is a string; otherwise they
+    are skipped with a reason, never an error.
+    """
+    evaluator_map: dict = {}
+    skipped: list[dict] = []
+    prompt, prompt_why = _prompt_skip(prompt_field, body or {})
+    for spec in specs:
+        factory = _BUILTIN_EVALUATOR_FACTORIES.get(spec.name)
+        if not factory:
+            continue
+        try:
+            evaluator_map[spec.name] = factory(spec.config, None)
+            continue
+        except ValueError as exc:
+            # Judge-based factories raise without an adapter (see
+            # core/evaluators/builtin.py:_require_llm).
+            err = exc
+        why = judge_skip_reason(spec.name, spec.config, err, _judge_adapter, _RUNNER)
+        if why is None:
+            why = prompt_why
+        if why is None:
+            ev, why = build_judge(factory, spec.config, _judge_adapter)
+            if ev is not None:
+                evaluator_map[spec.name] = JudgeJob(ev, prompt)
+        if why is not None:
+            skipped.append({"evaluator": spec.name, "reason": why})
+    return evaluator_map, skipped
 
 
 def _persist_invocation(
@@ -234,17 +299,33 @@ def _violation_response(
     violations: list[dict],
     request_id: str,
     trace_id: str | None = None,
+    skipped: list[dict] | None = None,
 ) -> JSONResponse:
-    return JSONResponse(
-        status_code=422,
-        content={
-            "eva_status": eva_status,
-            "attempts": attempts,
-            "violations": violations,
-            "request_id": request_id,
-            "trace_id": trace_id,
-        },
-    )
+    content: dict = {
+        "eva_status": eva_status,
+        "attempts": attempts,
+        "violations": violations,
+    }
+    if skipped:
+        content["skipped"] = skipped
+    content["request_id"] = request_id
+    content["trace_id"] = trace_id
+    return JSONResponse(status_code=422, content=content)
+
+
+def _pass_body(
+    attempts: int,
+    response: Any,
+    request_id: str,
+    trace_id: str | None,
+    skipped: list[dict],
+) -> dict:
+    body: dict = {"eva_status": "pass", "attempts": attempts, "response": response}
+    if skipped:
+        body["skipped"] = skipped
+    body["request_id"] = request_id
+    body["trace_id"] = trace_id
+    return body
 
 
 @router.post("/proxy")
@@ -261,12 +342,15 @@ async def proxy(req: ProxyRequest) -> Any:
         #   context["event_sink"].emit_tool_call(tool_name, args, ...)
         sink = EventSink()
         context = {"request_id": request_id, "trace_id": trace_id, "event_sink": sink}
-        evaluator_map = _build_evaluator_map(req.evaluators)
+        evaluator_map, skipped = _build_request_evaluators(
+            req.evaluators, req.prompt_field, req.body
+        )
 
         contract = Contract(
             name="inline",
             provider=req.target,
             request_schema={},
+            prompt_field=req.prompt_field,
             evaluators=[
                 EvaluatorRef(name=s.name, mode=s.mode, min_score=s.min_score)
                 for s in req.evaluators
@@ -337,6 +421,7 @@ async def proxy(req: ProxyRequest) -> Any:
                 violations=exc_retry.violations,
                 request_id=request_id,
                 trace_id=trace_id,
+                skipped=skipped,
             )
 
         try:
@@ -344,13 +429,13 @@ async def proxy(req: ProxyRequest) -> Any:
         except (json.JSONDecodeError, ValueError):
             response_data = retry_result.response_text  # type: ignore[union-attr]
 
-        return {
-            "eva_status": "pass",
-            "attempts": retry_result.attempts,  # type: ignore[union-attr]
-            "response": response_data,
-            "request_id": request_id,
-            "trace_id": trace_id,
-        }
+        return _pass_body(
+            retry_result.attempts,  # type: ignore[union-attr]
+            response_data,
+            request_id,
+            trace_id,
+            skipped,
+        )
 
 
 class InvokeRequest(BaseModel):
@@ -395,7 +480,7 @@ async def contract_invoke(req: InvokeRequest) -> Any:
         # EvaluatorRef carries per-evaluator config (substring, pattern, schema, …)
         # as pydantic extras (see core.models.EvaluatorRef, T-0260). Forward them
         # into EvaluatorSpec.config so factories receive the actual config.
-        evaluator_map = _build_evaluator_map(
+        evaluator_map, skipped = _build_request_evaluators(
             [
                 EvaluatorSpec(
                     name=ref.name,
@@ -404,7 +489,9 @@ async def contract_invoke(req: InvokeRequest) -> Any:
                     config=(ref.__pydantic_extra__ or {}),
                 )
                 for ref in contract.evaluators
-            ]
+            ],
+            contract.prompt_field,
+            req.body,
         )
 
         async def call_agent(body: dict) -> str:
@@ -468,6 +555,7 @@ async def contract_invoke(req: InvokeRequest) -> Any:
                 violations=exc_retry.violations,
                 request_id=request_id,
                 trace_id=trace_id,
+                skipped=skipped,
             )
 
         try:
@@ -476,10 +564,10 @@ async def contract_invoke(req: InvokeRequest) -> Any:
             response_data = retry_result.response_text  # type: ignore[union-attr]
 
         _capture_usage(response_data, request_id, "agent", contract.provider)
-        return {
-            "eva_status": "pass",
-            "attempts": retry_result.attempts,  # type: ignore[union-attr]
-            "response": response_data,
-            "request_id": request_id,
-            "trace_id": trace_id,
-        }
+        return _pass_body(
+            retry_result.attempts,  # type: ignore[union-attr]
+            response_data,
+            request_id,
+            trace_id,
+            skipped,
+        )
