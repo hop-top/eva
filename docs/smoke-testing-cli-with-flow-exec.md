@@ -10,10 +10,10 @@ structured output.
 
 > **Scope.** This cookbook only uses evaluators that already exist on
 > `eva` `main` today: `regex` and `contains`. Both work against arbitrary
-> response strings and need no flow-step routing. A follow-up cookbook
-> (`hop-top/eva#flow-exec-evaluators`) covers the structured
-> `status_code` / `equals` evaluators that pull typed fields out of a
-> step's JSON output.
+> response strings and need no flow-step routing. The structured
+> `status_code` / `equals` evaluators, which pull typed fields out of a
+> step's JSON output, are described in the
+> [evaluators reference](evaluators-reference.md).
 
 ---
 
@@ -29,8 +29,7 @@ structured output.
 ## 1 — The flow YAML (owned by `tlc`)
 
 Create a single-step flow that runs `tlc task create`. The canonical example
-file lives in the [`tlc` repo](https://github.com/hop-top/tlc) under
-`hop-top/tlc#flow-exec-step` (T-0730 owns it).
+file lives in the [`tlc` repo](https://github.com/hop-top/tlc).
 
 ```yaml
 # .tlc/flows/task-create-smoke.yaml
@@ -153,6 +152,3 @@ eva run \
 * [CLI reference: `eva run --contract`](cli-reference.md#standalone-contract-mode)
 * [Evaluators reference: regex, contains](evaluators-reference.md)
 * [Architecture: standalone CLI vs gateway](architecture.md)
-* `hop-top/tlc#flow-exec-step` — owns the canonical flow exec step + sample YAML
-* `hop-top/eva#flow-exec-evaluators` — sibling track adding `status_code`,
-  `exit_code`, `equals` for typed-field assertions against step outputs
