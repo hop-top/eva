@@ -215,3 +215,37 @@ def test_cli_run_contract_invalid_format_exits_two(tmp_path):
     assert result.returncode == 2
     combined = (result.stdout + result.stderr).lower()
     assert "format" in combined
+
+
+def test_cli_run_contract_field_scoped_regex_and_contains(tmp_path):
+    contract = _write(
+        tmp_path / "c.yaml",
+        """
+        name: tlc_task_create_smoke
+        provider: tlc
+        evaluators:
+          - name: exit_code
+            expected: 0
+          - name: regex
+            pattern: 'Created task T-[0-9]{4}'
+            field: stdout
+          - name: contains
+            substring: 'TODO'
+            field: stdout
+        """,
+    )
+    # TODO appears only in stderr: contains scoped to stdout must fail
+    inp = _write(
+        tmp_path / "out.json",
+        json.dumps(
+            {"exit_code": 0, "stdout": "Created task T-0042", "stderr": "TODO: x"}
+        ),
+    )
+    result = run_eva(
+        "run", "--contract", str(contract), "--input", str(inp), "--format", "json"
+    )
+    assert result.returncode != 0, result.stdout
+    report = json.loads(result.stderr or result.stdout)
+    by_name = {e["name"]: e for e in report["evaluators"]}
+    assert by_name["regex"]["passed"] is True
+    assert by_name["contains"]["passed"] is False

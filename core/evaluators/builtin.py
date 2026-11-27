@@ -87,8 +87,12 @@ BUILTIN_EVALUATOR_FACTORIES: dict[str, EvaluatorFactory] = {
     "contains": lambda cfg, _llm: ContainsEvaluator(
         substring=cfg.get("substring", ""),
         case_sensitive=cfg.get("case_sensitive", True),
+        field=cfg.get("field"),
     ),
-    "regex": lambda cfg, _llm: RegexEvaluator(pattern=cfg.get("pattern", ".*")),
+    "regex": lambda cfg, _llm: RegexEvaluator(
+        pattern=cfg.get("pattern", ".*"),
+        field=cfg.get("field"),
+    ),
     "json_schema_valid": lambda cfg, _llm: JsonSchemaEvaluator(schema=cfg.get("schema", {})),
     "last_paragraph_regex": lambda cfg, _llm: LastParagraphRegexEvaluator(
         pattern=cfg.get("pattern", ".*"),
