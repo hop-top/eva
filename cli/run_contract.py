@@ -22,6 +22,14 @@ import yaml
 
 from core.contract import ContractValidationError, load_contract
 from core.evaluators.builtin import BUILTIN_EVALUATOR_FACTORIES
+from core.evaluators.judge_support import (  # noqa: F401  (JUDGE_* re-exported)
+    JUDGE_NEEDS,
+    JUDGE_PROMPT_ONLY,
+    NO_JUDGE_REASON,
+    build_judge,
+    judge_skip_reason,
+    run_judge,
+)
 from core.models import Score
 
 
@@ -122,45 +130,10 @@ def _passed(score: float, mode: str, min_score: float) -> bool:
     return score == 1.0
 
 
-# Judge evaluators (factories that need an llm_adapter) split by what they read
-# beyond (prompt, response). A contract run supplies nothing else, so those in
-# JUDGE_NEEDS are skipped with a precise reason instead of guessing inputs.
-JUDGE_PROMPT_ONLY = frozenset({
-    "relevance", "hallucination", "tone", "task_completion", "safety",
-    "plan_quality", "geval", "rag:answer_relevancy", "rag:faithfulness",
-    "content:bias", "content:toxicity", "content:summarization",
-    "content:prompt_alignment",
-})
-# name -> (needed input, config key that supplies it, if any)
-JUDGE_NEEDS: dict[str, tuple[str, str | None]] = {
-    "tool_correctness": ("tool events", None),
-    "argument_correctness": ("tool events", None),
-    "tool_use": ("tool events", None),
-    "step_efficiency": ("tool events", None),
-    "plan_adherence": ("planned steps", None),
-    "rag:contextual_relevancy": ("retrieval context", None),
-    "rag:contextual_precision": ("retrieval context", None),
-    "rag:contextual_recall": ("retrieval context", None),
-    "ragas": ("retrieval context", None),
-    "content:goal_accuracy": ("expected output", "expected_output"),
-}
-
-NO_JUDGE_REASON = "no judge model configured"
+RUNNER = "a contract run"
 NO_PROMPT_REASON = (
     "judge evaluators need the request prompt: pass --prompt or --prompt-file"
 )
-
-
-def _missing_input_reason(name: str, cfg: dict) -> str | None:
-    need = JUDGE_NEEDS.get(name)
-    if need is None or (need[1] and cfg.get(need[1])):
-        return None
-    return (
-        f"needs {need[0]}, which a contract run cannot supply "
-        "(use dataset mode)"
-        if not need[1]
-        else f"needs {need[0]}: set `{need[1]}` in the contract, or use dataset mode"
-    )
 
 
 async def _run_judges(jobs: list[tuple[Any, str]], prompt: str):
@@ -168,14 +141,7 @@ async def _run_judges(jobs: list[tuple[Any, str]], prompt: str):
     results = []
     for ev, response_text in jobs:
         t0 = time.monotonic()
-        try:
-            score = await ev.evaluate(prompt=prompt, response=response_text)
-        except Exception as e:  # endpoint down, timeout, auth, ...
-            msg = (str(e).strip().splitlines() or [""])[0]
-            score = Score(
-                value=0.0,
-                reason=f"judge error: {type(e).__name__}: {msg}".rstrip(": "),
-            )
+        score = await run_judge(ev, prompt, response_text)
         results.append((score, int((time.monotonic() - t0) * 1000)))
     return results
 
@@ -240,23 +206,13 @@ def evaluate_contract(
         try:
             ev = factory(cfg, None)
         except ValueError as e:
-            if llm_adapter is None:
-                skipped_judge.append(f"{ref.name}: {NO_JUDGE_REASON}")
-                continue
-            if ref.name not in JUDGE_PROMPT_ONLY and ref.name not in JUDGE_NEEDS:
-                # Unclassified: never guess inputs for it.
-                skipped_judge.append(f"{ref.name}: {e}")
-                continue
-            why = _missing_input_reason(ref.name, cfg)
+            why = judge_skip_reason(ref.name, cfg, e, llm_adapter, RUNNER)
             if why is None and prompt is None:
                 why = NO_PROMPT_REASON
+            if why is None:
+                ev, why = build_judge(factory, cfg, llm_adapter)
             if why is not None:
                 skipped_judge.append(f"{ref.name}: {why}")
-                continue
-            try:
-                ev = factory(cfg, llm_adapter)
-            except (KeyError, TypeError) as e:
-                skipped_judge.append(f"{ref.name}: invalid evaluator config ({e})")
                 continue
             slots.append((ref, len(jobs)))
             jobs.append((ev, response_text))
