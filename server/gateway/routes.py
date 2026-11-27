@@ -19,6 +19,7 @@ from core.models import (
 from server.gateway.proxy import forward_request, ProxyError
 from server.gateway.evaluator import JudgeJob, evaluate_response
 from server.gateway.retry import retry_with_hint, RetryExhausted
+from server.gateway.evaluate import EvaluateRequest, evaluate_output
 
 def _capture_usage(
     response_data: Any,
@@ -162,9 +163,22 @@ def _build_request_evaluators(
     (prompt, response) and ``body[prompt_field]`` is a string; otherwise they
     are skipped with a reason, never an error.
     """
+    prompt, prompt_why = _prompt_skip(prompt_field, body or {})
+    return build_evaluators_for_prompt(specs, prompt, prompt_why)
+
+
+def build_evaluators_for_prompt(
+    specs: list[EvaluatorSpec],
+    prompt: str | None,
+    prompt_why: str | None,
+) -> tuple[dict, list[dict]]:
+    """`_build_request_evaluators` for a prompt already resolved by the caller.
+
+    ``prompt_why`` is the skip reason for prompt-needing judges when ``prompt``
+    is None.
+    """
     evaluator_map: dict = {}
     skipped: list[dict] = []
-    prompt, prompt_why = _prompt_skip(prompt_field, body or {})
     for spec in specs:
         factory = _BUILTIN_EVALUATOR_FACTORIES.get(spec.name)
         if not factory:
@@ -186,6 +200,24 @@ def _build_request_evaluators(
         if why is not None:
             skipped.append({"evaluator": spec.name, "reason": why})
     return evaluator_map, skipped
+
+
+def contract_evaluator_specs(contract: Contract) -> list[EvaluatorSpec]:
+    """Contract evaluator refs as specs.
+
+    EvaluatorRef carries per-evaluator config (substring, pattern, schema, ...)
+    as pydantic extras (see core.models.EvaluatorRef); forward them into
+    EvaluatorSpec.config so factories receive the actual config.
+    """
+    return [
+        EvaluatorSpec(
+            name=ref.name,
+            mode=ref.mode,
+            min_score=ref.min_score,
+            config=(ref.__pydantic_extra__ or {}),
+        )
+        for ref in contract.evaluators
+    ]
 
 
 def _persist_invocation(
@@ -477,21 +509,8 @@ async def contract_invoke(req: InvokeRequest) -> Any:
         #   context["event_sink"].emit_tool_call(tool_name, args, ...)
         invoke_sink = EventSink()
         context = {"request_id": request_id, "trace_id": trace_id, "event_sink": invoke_sink}
-        # EvaluatorRef carries per-evaluator config (substring, pattern, schema, …)
-        # as pydantic extras (see core.models.EvaluatorRef, T-0260). Forward them
-        # into EvaluatorSpec.config so factories receive the actual config.
         evaluator_map, skipped = _build_request_evaluators(
-            [
-                EvaluatorSpec(
-                    name=ref.name,
-                    mode=ref.mode,
-                    min_score=ref.min_score,
-                    config=(ref.__pydantic_extra__ or {}),
-                )
-                for ref in contract.evaluators
-            ],
-            contract.prompt_field,
-            req.body,
+            contract_evaluator_specs(contract), contract.prompt_field, req.body
         )
 
         async def call_agent(body: dict) -> str:
@@ -571,3 +590,13 @@ async def contract_invoke(req: InvokeRequest) -> Any:
             trace_id,
             skipped,
         )
+
+
+@router.post("/contract/evaluate")
+async def contract_evaluate(req: EvaluateRequest) -> Any:
+    return await evaluate_output(
+        req,
+        _registry,
+        contract_evaluator_specs,
+        build_evaluators_for_prompt,
+    )
