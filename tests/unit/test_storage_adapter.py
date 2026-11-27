@@ -1,7 +1,7 @@
 # tests/unit/test_storage_adapter.py
 """Tests for StorageAdapter interface on SqliteStorage."""
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from core.storage import SqliteStorage
 from core.models import Run, Result, Score
 
@@ -17,7 +17,7 @@ def sample_run():
         run_id="run_async_001",
         dataset="refunds",
         target="http://localhost:8000",
-        started_at=datetime.utcnow(),
+        started_at=datetime.now(timezone.utc),
         results=[
             Result(
                 test_id="t1",

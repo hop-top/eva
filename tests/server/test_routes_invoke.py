@@ -68,6 +68,36 @@ async def test_invoke_passes_valid_request(app_with_registry):
 
 
 @pytest.mark.asyncio
+async def test_invoke_persists_invocation_with_utc_started_at(app_with_registry, tmp_path):
+    from sqlmodel import Session, select
+    from core.storage import InvocationRecord, SqliteStorage
+    from server.gateway import routes
+    from server.gateway.proxy import ProxyResponse
+
+    storage = SqliteStorage(db_url=f"sqlite:///{tmp_path}/invoke.db")
+    routes.set_storage(storage)
+    try:
+        with patch("server.gateway.routes.forward_request", new_callable=AsyncMock) as mock_fwd:
+            mock_fwd.return_value = ProxyResponse(
+                status_code=200, text='{"reply": "hello"}', headers={}
+            )
+            async with AsyncClient(
+                transport=ASGITransport(app=app_with_registry), base_url="http://test"
+            ) as client:
+                resp = await client.post(
+                    "/v1/contract/invoke",
+                    json={"contract": "echo_policy", "body": {"message": "hi"}},
+                )
+    finally:
+        routes.set_storage(None)
+
+    assert resp.status_code == 200
+    with Session(storage.engine) as session:
+        rows = session.exec(select(InvocationRecord)).all()
+    assert len(rows) == 1
+
+
+@pytest.mark.asyncio
 async def test_invoke_unknown_contract_returns_404(app_with_registry):
     async with AsyncClient(
         transport=ASGITransport(app=app_with_registry), base_url="http://test"

@@ -74,6 +74,26 @@ async def test_runner_records_duration():
     assert all(r.duration_ms >= 0 for r in run.results)
 
 
+@pytest.mark.asyncio
+async def test_runner_run_is_timezone_aware_and_storable(tmp_path):
+    from datetime import timedelta
+    from core.plugins import make_manager
+    from core.storage import SqliteStorage
+    pm = make_manager()
+    pm.register(AlwaysPassPlugin())
+
+    async def fake_call(input: str, target: str) -> str:
+        return "ok"
+
+    runner = Runner(pm=pm, call_agent=fake_call)
+    run = await runner.execute(DATASET)
+    assert run.started_at.utcoffset() == timedelta(0)
+
+    storage = SqliteStorage(db_url=f"sqlite:///{tmp_path}/runner.db")
+    storage.save_run(run)
+    assert storage.get_run(run.run_id) is not None
+
+
 # ---------------------------------------------------------------------------
 # T-0027: mode/min_score wiring from evaluator config
 # ---------------------------------------------------------------------------

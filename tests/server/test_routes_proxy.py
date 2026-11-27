@@ -80,3 +80,32 @@ async def test_proxy_upstream_error_returns_502():
 
     assert resp.status_code == 502
     assert "connection refused" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_proxy_persists_invocation_with_utc_started_at(tmp_path):
+    from sqlmodel import Session, select
+    from core.storage import InvocationRecord, SqliteStorage
+    from server.gateway import routes
+
+    storage = SqliteStorage(db_url=f"sqlite:///{tmp_path}/proxy.db")
+    routes.set_storage(storage)
+    try:
+        with patch("server.gateway.routes.forward_request", new_callable=AsyncMock) as mock_fwd:
+            mock_fwd.return_value = _make_proxy_response('{"answer": "hello"}')
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                resp = await client.post(
+                    "/v1/proxy",
+                    json={
+                        "target": "http://agent:8000/chat",
+                        "body": {"input": "hi"},
+                        "evaluators": [],
+                    },
+                )
+    finally:
+        routes.set_storage(None)
+
+    assert resp.status_code == 200
+    with Session(storage.engine) as session:
+        rows = session.exec(select(InvocationRecord)).all()
+    assert len(rows) == 1

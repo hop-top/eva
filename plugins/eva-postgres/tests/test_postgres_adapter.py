@@ -5,7 +5,7 @@ Docker: docker run -e POSTGRES_PASSWORD=eva -e POSTGRES_DB=eva_test -p 5432:5432
 """
 import os
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from core.models import Run, Result, Score
 
 POSTGRES_URL = os.getenv("EVA_POSTGRES_URL", "postgresql://postgres:eva@localhost:5432/eva_test")
@@ -34,7 +34,7 @@ def test_save_and_retrieve_run():
         run_id="pg_test_001",
         dataset="test_dataset",
         target="http://agent:8000",
-        started_at=datetime.utcnow(),
+        started_at=datetime.now(timezone.utc),
         results=[
             Result(
                 test_id="t1",
