@@ -101,8 +101,13 @@ E2E tests use `subprocess` to call the actual CLI binary.
 
 ## Branch Convention
 
-`{category}/{tlc-id}-{short-description}`
-e.g. `feat/T-0001-project-scaffold`, `docs/T-0014-cli-reference`
+`{category}/{short-description}`
+e.g. `feat/project-scaffold`, `docs/cli-reference`
+
+Category = Conventional Commits type (`feat`, `fix`, `docs`, `chore`, ...).
+No task IDs in branch names: branches land in git history, and task
+linkage runs tracker → repo only. Link the task outside the name:
+`git hop add <branch> --task <id>`.
 
 Never work on `main` directly. Always use worktree: `git hop add <branch>`.
 
