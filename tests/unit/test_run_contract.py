@@ -351,3 +351,44 @@ def test_load_input_binary_raises_valueerror(tmp_path):
     binary.write_bytes(b"\xff\xfe\xfd\x00\x80")
     with pytest.raises(ValueError, match="not valid UTF-8"):
         _load_input(str(binary))
+
+
+def test_judge_evaluator_without_judge_is_skipped_with_reason(tmp_path):
+    contract = _write(
+        tmp_path / "c.yaml",
+        """
+        name: judged
+        provider: noop
+        evaluators:
+          - name: relevance
+          - name: geval
+            criteria: be good
+          - name: contains
+            substring: ok
+        """,
+    )
+    report = evaluate_contract(contract, "ok")
+    assert report.passed is True
+    assert [o.name for o in report.outcomes] == ["contains"]
+    assert report.skipped == []
+    assert report.skipped_judge == [
+        "relevance: no judge model configured",
+        "geval: no judge model configured",
+    ]
+
+
+def test_judge_configured_skip_reason_differs(tmp_path):
+    contract = _write(
+        tmp_path / "c.yaml",
+        """
+        name: judged
+        provider: noop
+        evaluators:
+          - name: relevance
+        """,
+    )
+    report = evaluate_contract(contract, "ok", judge_configured=True)
+    assert report.passed is True
+    assert len(report.skipped_judge) == 1
+    assert report.skipped_judge[0].startswith("relevance: ")
+    assert "no judge model configured" not in report.skipped_judge[0]

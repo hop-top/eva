@@ -1,7 +1,8 @@
 # LLM-as-Judge Evaluators Reference
 
 Tier 2 evaluators — use an LLM "judge" to score semantic qualities of agent responses.
-Requires `EVA_JUDGE_MODEL` set in `.env`.
+Requires a judge model: `EVA_JUDGE_MODEL` (env / `.env`) or `judge.model` in `eva.yaml`.
+With none configured, judge evaluators are skipped with a reason and the run is not failed.
 
 All return `Score(value: float)` in `[0.0, 1.0]`. All support `mode: binary | threshold | warn`.
 
@@ -20,6 +21,30 @@ OPENAI_API_KEY=sk-...
 EVA_JUDGE_MODEL=anthropic/claude-3-haiku-20240307
 EVA_JUDGE_MODEL=azure/gpt-4o
 ```
+
+### Self-hosted endpoint
+
+Point the judge at any OpenAI-compatible server (Ollama `/v1`, vLLM, mlx_lm.server,
+a gateway). Use the `openai/` model prefix plus `base_url`:
+
+```yaml
+# eva.yaml
+judge:
+  model: openai/my-judge-model        # id the server accepts, openai/ prefix
+  base_url: http://localhost:11434/v1
+  api_key_env: MY_JUDGE_KEY           # optional: env var NAME, not the key
+  timeout_s: 60                       # optional: per-request timeout (seconds)
+  params: {}                          # optional: extra LiteLLM kwargs
+```
+
+Env equivalents: `EVA_JUDGE_MODEL`, `EVA_JUDGE_BASE_URL` (both override `eva.yaml`).
+With `base_url` set and no `api_key_env`, a placeholder key is sent; the ambient
+`OPENAI_API_KEY` is never forwarded to a custom endpoint. If `api_key_env` names
+an unset variable, `eva run --dataset` exits `2` with an error.
+
+Where judge evaluators run: `eva run --dataset` (all modes). `eva run --contract
+--input` records them as `skipped` (`skipped_judge` in JSON; they need the request
+prompt, which a lone response artifact lacks). They are not run by the gateway.
 
 Cost note: each Tier 2 evaluator = 1 LLM call per test case. Use `mode: warn` during
 development; switch to `threshold` or `binary` in CI.

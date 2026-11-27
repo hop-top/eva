@@ -37,13 +37,27 @@ class ObservabilityConfig(BaseModel):
 class JudgeConfig(BaseModel):
     """LLM-judge sub-config nested under ``judge:`` in eva.yaml.
 
-    ``EVA_JUDGE_MODEL`` env var overrides ``model``. No model configured in
-    either place means judge-based evaluators are skipped with a reason.
+    ``EVA_JUDGE_MODEL`` / ``EVA_JUDGE_BASE_URL`` env vars override ``model`` /
+    ``base_url``. No model configured in either place means judge-based
+    evaluators are skipped with a reason.
     """
 
     model: str | None = Field(
         default=None,
         description="LiteLLM model id for judge evaluators (e.g. 'gpt-4o-mini').",
+    )
+    base_url: str | None = Field(
+        default=None,
+        description="OpenAI-compatible endpoint for the judge (self-hosted, proxy).",
+    )
+    api_key_env: str | None = Field(
+        default=None,
+        description="NAME of the env var holding the judge API key (never the key).",
+    )
+    timeout_s: float | None = Field(
+        default=None,
+        gt=0,
+        description="Per-request timeout in seconds for judge calls.",
     )
     params: dict[str, Any] = Field(
         default_factory=dict,
@@ -76,6 +90,9 @@ _CONFIG_TEMPLATE = """\
 # min_score: 0.0
 # judge:
 #   model: gpt-4o-mini           # LiteLLM model for judge evaluators (env EVA_JUDGE_MODEL overrides)
+#   base_url: http://localhost:11434/v1  # OpenAI-compatible endpoint (env EVA_JUDGE_BASE_URL overrides)
+#   api_key_env: MY_JUDGE_KEY    # NAME of the env var holding the key, not the key
+#   timeout_s: 60                # per-request timeout, seconds
 #   params: {}                   # extra LiteLLM kwargs
 # observability:
 #   sample_rate: 1.0             # 0.0-1.0; fraction of requests with artifact writes

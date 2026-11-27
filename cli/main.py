@@ -249,7 +249,11 @@ def run(
     pm = build_manager(plugin_file=Path("plugins.py"))
     # Judge adapter: EVA_JUDGE_MODEL env / eva.yaml judge.model. None is fine —
     # judge-based builtin refs then skip with a reason (surfaced below).
-    llm_adapter = build_llm_adapter(find_and_load_config())
+    try:
+        llm_adapter = build_llm_adapter(find_and_load_config())
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(2)
 
     if ds.chat is not None:
         from core.chat_targets import build_provider
