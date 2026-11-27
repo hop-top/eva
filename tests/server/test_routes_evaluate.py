@@ -34,6 +34,14 @@ CONTRACTS = {
         "provider": DEAD_PROVIDER,
         "evaluators": [{"name": "contains", "substring": "all good", "field": "stdout"}],
     },
+    "exitcode": {
+        "name": "exitcode",
+        "provider": DEAD_PROVIDER,
+        "evaluators": [
+            {"name": "exit_code", "expected": 0},
+            {"name": "regex", "pattern": "done [0-9]+", "field": "stdout"},
+        ],
+    },
     "judged": {
         "name": "judged",
         "provider": DEAD_PROVIDER,
@@ -134,6 +142,15 @@ async def test_object_output_is_scored_by_top_level_field(app):
     resp = await post(app, {"contract": "execres", "output": bad})
     assert resp.status_code == 422, resp.text
     assert resp.json()["violations"][0]["evaluator"] == "contains"
+
+
+@pytest.mark.asyncio
+async def test_exit_code_evaluator_reads_command_result(app):
+    ok = {"exit_code": 0, "stdout": "done 42"}
+    assert (await post(app, {"contract": "exitcode", "output": ok})).status_code == 200
+    resp = await post(app, {"contract": "exitcode", "output": {**ok, "exit_code": 1}})
+    assert resp.status_code == 422, resp.text
+    assert [v["evaluator"] for v in resp.json()["violations"]] == ["exit_code"]
 
 
 @pytest.mark.asyncio
