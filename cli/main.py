@@ -6,12 +6,31 @@ import typer
 from rich.console import Console
 
 try:
-    _VERSION = _pkg_version("eva")
+    _VERSION = _pkg_version("hop-top-eva")
 except PackageNotFoundError:
     _VERSION = "0.0.0"
 
 app = typer.Typer()
 console = Console()
+
+
+def _version_callback(value: bool):
+    if value:
+        console.print(_VERSION)
+        raise typer.Exit()
+
+
+@app.callback()
+def _root(
+    version: bool = typer.Option(
+        False,
+        "--version",
+        callback=_version_callback,
+        is_eager=True,
+        help="Show version and exit.",
+    ),
+):
+    pass
 
 PLUGIN_TEMPLATE = '''\
 from core.plugins import EvaPlugin, EvaSpec

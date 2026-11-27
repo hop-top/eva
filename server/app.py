@@ -9,7 +9,7 @@ from server.contracts.registry import ContractRegistry
 from server.gateway.routes import router as gateway_router, set_registry, set_sample_rate
 
 try:
-    _VERSION = version("eva")
+    _VERSION = version("hop-top-eva")
 except PackageNotFoundError:
     _VERSION = "0.0.0"
 
