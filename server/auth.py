@@ -13,7 +13,7 @@ Keys are provisioned directly in Redis or via operator tooling.
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, Mapping
 
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -53,9 +53,40 @@ def _make_state_adapter() -> StateAdapter:
     return _NullStateAdapter()
 
 
+# Set by `eva serve --no-auth` so child processes (uvicorn workers, reload
+# subprocess) build their app unauthenticated. Not a user-facing switch.
+NO_AUTH_ENV = "EVA_NO_AUTH"
+
+
+class AuthNotConfiguredError(RuntimeError):
+    """`eva serve` was asked to start with no key store and without --no-auth."""
+
+
 def auth_enabled() -> bool:
-    """True when a key store is configured (EVA_REDIS_URL set)."""
+    """True when a key store is configured (EVA_REDIS_URL set) and
+    `eva serve --no-auth` has not switched auth off (EVA_NO_AUTH)."""
+    if os.environ.get(NO_AUTH_ENV, ""):
+        return False
     return bool(os.environ.get("EVA_REDIS_URL", ""))
+
+
+def serve_auth_mode(no_auth: bool, environ: Mapping[str, str] | None = None) -> str:
+    """Decide how `eva serve` handles authentication.
+
+    Returns "disabled" (--no-auth; wins even when a key store is configured)
+    or "enforced" (key store configured). Raises AuthNotConfiguredError when
+    neither holds.
+    """
+    env = os.environ if environ is None else environ
+    if no_auth:
+        return "disabled"
+    if env.get("EVA_REDIS_URL", ""):
+        return "enforced"
+    raise AuthNotConfiguredError(
+        "no API key store configured. Refusing to start an unauthenticated "
+        "gateway. Either configure the key store (set EVA_REDIS_URL), or pass "
+        "--no-auth to serve without authentication."
+    )
 
 
 def _unauthorized(message: str) -> JSONResponse:
