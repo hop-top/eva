@@ -34,6 +34,8 @@ class Contract(BaseModel):
     request_schema: dict = {}
     evaluators: list[EvaluatorRef] = []
     retry_policy: RetryPolicy = RetryPolicy()
+    # Top-level request-body key holding the prompt for LLM-judge evaluators.
+    prompt_field: str | None = None
 
 
 class Result(BaseModel):

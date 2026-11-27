@@ -48,6 +48,7 @@ eva serve [OPTIONS]
 2. Check auth: no key store and no `--no-auth` prints an error naming both
    remedies on stderr and exits `2` before binding a port. With `--no-auth`,
    print a warning on stderr that the gateway is unauthenticated.
+2a. Check the judge configuration (see [Judge configuration](#judge-configuration)).
 3. Construct `ContractRegistry`.
 4. Scan `--contracts-dir` — load each `*.yaml` file as a `Contract`.
 5. Log: `Loaded N contract(s) from <dir>` (or warning if dir missing).
@@ -57,6 +58,24 @@ eva serve [OPTIONS]
    reload process builds its own app, loading contracts from the same directory.
 
 > When `--reload` is set, `workers` is forced to `1` regardless of the flag value.
+
+---
+
+## Judge configuration
+
+Contracts with LLM-judge evaluators are scored by one judge per process, built
+at start from `EVA_JUDGE_MODEL` / `EVA_JUDGE_BASE_URL` (env) or the `judge:`
+section of `eva.yaml` in the working directory. With no model configured the
+gateway starts normally and judge evaluators are skipped per request (see
+[Judge evaluators in the gateway](llm-evaluators.md#judge-evaluators-in-the-gateway)).
+
+A judge configuration that cannot be built stops the start, in every serve mode
+(single process, `--workers`, `--reload`): the error prints on stderr and the exit
+code is `2`, before a port is bound.
+
+```
+Error: judge.api_key_env 'MY_JUDGE_KEY' is not set in the environment
+```
 
 ---
 

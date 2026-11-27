@@ -418,6 +418,18 @@ def serve(
     import os
     import uvicorn
     from cli.run_contract import EXIT_BAD_INPUT
+    from core.config import find_and_load_config
+    from core.llm import JudgeConfigError, build_llm_adapter
+
+    # Fail at start, in every serve mode: a judge that cannot be built must not
+    # surface per request (or per worker, after the port is bound). Checked
+    # before importing server.app, whose module-level app reads the same config.
+    try:
+        judge_adapter = build_llm_adapter(find_and_load_config())
+    except JudgeConfigError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(EXIT_BAD_INPUT)
+
     from server.app import SERVE_CONTRACTS_DIR_ENV, create_app, create_serve_app
     from server.auth import NO_AUTH_ENV, AuthNotConfiguredError, serve_auth_mode
     from server.contracts.registry import ContractRegistry
@@ -463,7 +475,11 @@ def serve(
         )
         return
 
-    uvicorn.run(create_app(registry=registry), host=host, port=port)
+    uvicorn.run(
+        create_app(registry=registry, judge_adapter=judge_adapter),
+        host=host,
+        port=port,
+    )
 
 
 annotate_app = typer.Typer(help="Annotation commands.")

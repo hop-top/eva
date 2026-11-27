@@ -39,6 +39,7 @@ retry_policy:
 | `request_schema`| `object` | No | JSON Schema for validating the incoming request. |
 | `evaluators` | `list` | No | List of evaluators to run against the agent's response. |
 | `retry_policy` | `object` | No | Configuration for retrying failed interactions. |
+| `prompt_field` | `string` | No | Request-body field holding the prompt for judge evaluators. See [Judge prompt](#judge-prompt-prompt_field). |
 
 ---
 
@@ -63,6 +64,38 @@ Each item in the `evaluators` list is a reference to a built-in or custom evalua
 | `max_retries` | `int` | `2` | Number of times to retry a failed interaction. |
 | `hint` | `string` | `None` | A text prompt injected into the retry request to guide the agent. |
 | `backoff_ms` | `int` | `0` | Delay between retry attempts in milliseconds. |
+
+---
+
+## Judge prompt: `prompt_field`
+
+LLM-judge evaluators (see [LLM Evaluators](llm-evaluators.md)) score a
+`(prompt, response)` pair. The gateway has the response; `prompt_field` names
+the request-body field that holds the prompt.
+
+```yaml
+name: support_reply
+provider: http://agent:8000/respond
+prompt_field: question
+evaluators:
+  - name: relevance
+    mode: threshold
+    min_score: 0.7
+```
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `prompt_field` | `string` | No | Name of a top-level key of the request `body`. Its string value is the prompt handed to judge evaluators. |
+
+- Top-level key only: no nested or dotted paths (same lookup rule as the
+  `field:` option of `regex`, `contains` and `equals`).
+- The value must be a string. A body without the key, or with a non-string
+  value, skips the judge evaluators for that request (reported in `skipped`).
+- Without `prompt_field`, judge evaluators are skipped.
+- Contracts without judge evaluators ignore the key.
+
+See [Judge evaluators in the gateway](llm-evaluators.md#judge-evaluators-in-the-gateway)
+for configuration, what is skipped and why, and retry cost.
 
 ---
 

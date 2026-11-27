@@ -2,7 +2,21 @@
 from __future__ import annotations
 import time
 from dataclasses import dataclass, field
+from typing import Any
+from core.evaluators.judge_support import run_judge
 from core.models import Contract, Result, Score
+
+
+@dataclass
+class JudgeJob:
+    """A judge evaluator bound to the request prompt it scores against.
+
+    Judge evaluators score ``(prompt, response)`` through an async call, so the
+    evaluator map holds one of these in place of a sync ``.run`` evaluator.
+    """
+
+    evaluator: Any
+    prompt: str
 
 
 @dataclass
@@ -32,7 +46,12 @@ async def evaluate_response(
             continue
 
         t0 = time.monotonic()
-        score: Score = evaluator.run(response_text)
+        if isinstance(evaluator, JudgeJob):
+            score: Score = await run_judge(
+                evaluator.evaluator, evaluator.prompt, response_text
+            )
+        else:
+            score = evaluator.run(response_text)
         duration_ms = int((time.monotonic() - t0) * 1000)
 
         result = Result(
