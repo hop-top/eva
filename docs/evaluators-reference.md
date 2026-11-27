@@ -88,13 +88,12 @@ evaluators:
 
 ## `status_code` / `exit_code`
 
-Asserts that a flow-exec step's `exit_code` (or HTTP-style `status_code`) field matches an
+Asserts that the `exit_code` (or HTTP-style `status_code`) field matches an
 expected integer or falls within an allowed set. `exit_code` is registered as an alias for
 `status_code` — both names resolve to the same evaluator class. Use whichever reads more
-naturally for your contract; `exit_code` matches the field emitted by tlc's `exec` step
-type, while `status_code` mirrors HTTP convention.
+naturally for your contract; `exit_code` reads as a command's exit status, while `status_code` mirrors HTTP convention.
 
-The evaluator receives the step output as a JSON-encoded string. It looks up `exit_code`
+The evaluator receives the input as a JSON-encoded string. It looks up `exit_code`
 first, then falls back to `status_code`. Booleans are rejected (Python's `bool` is an int
 subclass — guarded explicitly).
 

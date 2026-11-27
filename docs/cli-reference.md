@@ -58,7 +58,7 @@ they cannot be combined with `--target` (exit `2`). See
 
 Evaluates a single response artifact against a contract YAML. No agent call,
 no gateway. Intended for CI smoke and local dev, e.g. validating a recorded
-output from `tlc flow exec`. See [architecture.md](architecture.md#standalone-cli-eva-run---contract---input).
+CLI output. See [architecture.md](architecture.md#standalone-cli-eva-run---contract---input).
 
 | Flag | Description |
 |---|---|

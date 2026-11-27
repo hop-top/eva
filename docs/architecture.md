@@ -11,7 +11,7 @@ document covers the major runtime shapes Eva ships in: the long-running
 | Path | Entry point | Use when |
 |------|-------------|----------|
 | Gateway | `POST ${EVA_URL}/v1/contract/invoke` | A live agent fronts the contract; production traffic, retries, hints |
-| Standalone CLI | `eva run --contract <file> --input <file>` | CI smoke, local dev, pre-recorded artifacts (e.g. flow recordings); no agent, no server |
+| Standalone CLI | `eva run --contract <file> --input <file>` | CI smoke, local dev, pre-recorded artifacts (e.g. captured CLI output); no agent, no server |
 
 Both paths dispatch through the **same built-in evaluator registry**
 (`core/evaluators/builtin.py::BUILTIN_EVALUATOR_FACTORIES`). Adding a new
@@ -97,7 +97,8 @@ to its factory — so config fields survive.
 The standalone runner takes the agent's response **as a file**. That makes it
 ideal for:
 
-* CI gates over flow recordings (e.g. the output of a `flo` exec step)
+* CI gates over captured CLI output (see the
+  [smoke-testing cookbook](smoke-testing-cli-output.md))
 * re-checking past invocations against an updated contract
 * deterministic smoke tests where the producer is a CLI, not an HTTP service
 

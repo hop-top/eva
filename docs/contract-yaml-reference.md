@@ -108,28 +108,49 @@ for configuration, what is skipped and why, and retry cost.
 
 ---
 
-## Contracts for exec-step output (`flo` exec step)
+## Contracts for CLI output
 
-Contracts can validate any text/JSON artifact — not just live agent
-responses. A common pattern is gating CI smoke tests on the recorded output
-of a CLI step (see [flo](https://github.com/hop-top/flo) and the
-[smoke-testing cookbook](smoke-testing-cli-with-flow-exec.md)).
+In standalone contract mode (`eva run --contract --input`) a contract
+evaluates any text or JSON artifact, such as the captured output of a CLI
+(see the [smoke-testing cookbook](smoke-testing-cli-output.md)). No agent is
+called and no gateway is involved.
 
-The input to the contract is the exec step's structured output, typically
-shaped like:
+Contract mode reads the contract's `name` and `evaluators`. `provider` must
+be present (the contract schema requires it) but is never contacted, and
+`request_schema`, `consumer` and `retry_policy` are not consulted. The
+[gateway](gateway-api.md) is different: `POST /v1/contract/invoke` forwards
+the request `body` to the contract's `provider` URL and evaluates the reply.
+
+For plain text output, use `regex` and `contains` over the whole input:
+
+```yaml
+name: tlc_task_create_smoke
+provider: tlc
+evaluators:
+  - name: regex
+    pattern: 'Created task T-[0-9]{4}'
+  - name: contains
+    substring: 'smoke test task'
+```
+
+To assert on an exit status as well, save the exit code and output together
+as one JSON object and scope the text evaluators to a field:
+
+```bash
+out=$(tlc task create "smoke test task"); code=$?
+jq -n --arg stdout "$out" --argjson exit_code "$code" \
+  '{exit_code: $exit_code, stdout: $stdout}' > result.json
+```
 
 ```json
 {
   "exit_code": 0,
-  "stdout": "Created task T-0734\nStatus: TODO\n",
-  "stderr": ""
+  "stdout": "Created task T-0010: smoke test task"
 }
 ```
 
-Example contract for that artifact:
-
 ```yaml
-name: tlc_task_create_smoke
+name: tlc_task_create_result
 provider: tlc
 evaluators:
   - name: exit_code
@@ -137,9 +158,28 @@ evaluators:
   - name: regex
     pattern: 'Created task T-[0-9]{4}'
     field: stdout
-  - name: contains
-    substring: 'TODO'
-    field: stdout
+```
+
+```bash
+eva run --contract contracts/tlc_task_create_result.yaml --input result.json --format text
+```
+
+```text
+Contract: tlc_task_create_result
+  [PASS] exit_code (mode=binary, score=1.00, 0ms)
+  [PASS] regex (mode=binary, score=1.00, 0ms)
+PASSED  2/2 evaluators  (0ms)
+```
+
+Exit code `0`. With `"exit_code": 1` in the input, the same contract exits
+`1`:
+
+```text
+Contract: tlc_task_create_result
+  [FAIL] exit_code (mode=binary, score=0.00, 0ms)
+    reason: status_code: expected 0, got 1
+  [PASS] regex (mode=binary, score=1.00, 0ms)
+FAILED  1/2 evaluators  (0ms)
 ```
 
 > **Note:** `field:` routing is honored by `status_code` (alias
@@ -147,15 +187,7 @@ evaluators:
 > when `field` is set the input is parsed as a JSON object and the check runs
 > against that top-level field's string value only; text elsewhere in the
 > payload is ignored. The check scores 0.0 (never raises) when the input is not
-> a JSON object, the field is missing, or the field's value is not a string.
-> Without `field`, the whole input string is evaluated. Nested or dotted paths
-> are not supported.
-
-Run the contract against a recorded output via the standalone CLI:
-
-```bash
-eva run --contract contracts/tlc_task_create.yaml --input artifacts/output.json
-```
-
-This validates the recording without booting an agent, an Eva server, or the
-upstream CLI under test — making the gate fast, hermetic, and CI-friendly.
+> a JSON object (`regex: payload is not a JSON object`), the field is missing
+> (`regex: field 'id' missing from payload`), or the field's value is not a
+> string. Without `field`, the whole input string is evaluated. Nested or
+> dotted paths are not supported.

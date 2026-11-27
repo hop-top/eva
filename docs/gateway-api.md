@@ -186,8 +186,9 @@ X-Eva-Key: <key>
 ### Calling `POST /v1/contract/invoke`
 
 The caller-side view of the endpoint above: what to send and which response
-to expect for each outcome. Send the contract name and the payload to check as
-`body`. Every response is JSON.
+to expect for each outcome. Send the contract name and the request to forward
+as `body`; the gateway posts it to the contract's `provider` URL and evaluates
+the reply. Every response is JSON.
 
 ```sh
 curl -sS -X POST http://localhost:8080/v1/contract/invoke \
@@ -321,11 +322,11 @@ one.
 
 #### Stability
 
-The exec-step result shape (`exit_code`, `stdout`, `stderr`; see
-[Contracts for exec-step output](contract-yaml-reference.md#contracts-for-exec-step-output-tlc-flow-exec))
+The command-result shape (`exit_code`, `stdout`, `stderr`; see
+[Contracts for CLI output](contract-yaml-reference.md#contracts-for-cli-output))
 and the `exit_code` alias for the `status_code` evaluator
 ([reference](evaluators-reference.md#status_code--exit_code)) are stable for
-callers. A caller that sends an exec step's output as `body` can rely on both.
+callers. Both are used by `eva run --contract` on a saved result.
 
 ---
 
