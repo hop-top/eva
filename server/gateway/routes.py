@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import random
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
@@ -283,7 +283,7 @@ async def proxy(req: ProxyRequest) -> Any:
             return proxy_resp.text
 
         sampled = _is_sampled()
-        started_at = datetime.utcnow()
+        started_at = datetime.now(timezone.utc)
         retry_result = None
         exc_proxy: ProxyError | None = None
         exc_retry: RetryExhausted | None = None
@@ -301,7 +301,7 @@ async def proxy(req: ProxyRequest) -> Any:
         except RetryExhausted as exc:
             exc_retry = exc
         finally:
-            ended_at = datetime.utcnow()
+            ended_at = datetime.now(timezone.utc)
             if exc_proxy is None:  # upstream_error path skips persistence (no response)
                 _status = "pass" if retry_result is not None else "fail"
                 _resp_text = (
@@ -414,7 +414,7 @@ async def contract_invoke(req: InvokeRequest) -> Any:
             return proxy_resp.text
 
         invoke_sampled = _is_sampled()
-        started_at = datetime.utcnow()
+        started_at = datetime.now(timezone.utc)
         retry_result = None
         exc_proxy: ProxyError | None = None
         exc_retry: RetryExhausted | None = None
@@ -432,7 +432,7 @@ async def contract_invoke(req: InvokeRequest) -> Any:
         except RetryExhausted as exc:
             exc_retry = exc
         finally:
-            ended_at = datetime.utcnow()
+            ended_at = datetime.now(timezone.utc)
             if exc_proxy is None:
                 _status = "pass" if retry_result is not None else "fail"
                 _resp_text = (

@@ -241,7 +241,7 @@ def _run_with_tui(runner, ds):
     """Execute runner with rich progress spinner and results table."""
     import asyncio
     import uuid
-    from datetime import datetime
+    from datetime import datetime, timezone
     from rich.progress import (
         Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn,
     )
@@ -263,21 +263,21 @@ def _run_with_tui(runner, ds):
         )
 
         async def _tracked():
-            started_at = datetime.utcnow()
+            started_at = datetime.now(timezone.utc)
             run_id = str(uuid.uuid4())[:8]
             semaphore = asyncio.Semaphore(runner.max_workers)
             results = []
 
             async def run_one(test):
                 async with semaphore:
-                    t0 = datetime.utcnow()
+                    t0 = datetime.now(timezone.utc)
                     runner.pm.hook.before_eval(test_id=test.id, context={})
                     response = await runner.call_agent(test.input, ds.target)
                     scores = runner.pm.hook.run_eval(
                         response=response,
                         context={"test": test.model_dump()},
                     )
-                    t1 = datetime.utcnow()
+                    t1 = datetime.now(timezone.utc)
                     ms = int((t1 - t0).total_seconds() * 1000)
                     batch = []
                     for score in scores:
@@ -300,7 +300,7 @@ def _run_with_tui(runner, ds):
             for batch in all_batches:
                 results.extend(batch)
 
-            t_end = datetime.utcnow()
+            t_end = datetime.now(timezone.utc)
             ok = all(r.passed for r in results) if results else True
             return Run(
                 run_id=run_id,

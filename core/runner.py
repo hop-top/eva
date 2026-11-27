@@ -2,7 +2,7 @@
 import asyncio
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Callable, Awaitable
 
 import pluggy
@@ -86,7 +86,7 @@ class Runner:
             self.otel = _make_noop_adapter()
 
     async def execute(self, dataset: Dataset) -> Run:
-        started_at = datetime.utcnow()
+        started_at = datetime.now(timezone.utc)
         run_id = str(uuid.uuid4())[:8]
         results: list[Result] = []
 
@@ -137,7 +137,7 @@ class Runner:
                 # shared across the task set.
                 invocation_sink = EventSink()
 
-                t0 = datetime.utcnow()
+                t0 = datetime.now(timezone.utc)
                 # Provide the per-invocation sink so plugins/wrappers can emit
                 # tool events via:
                 #   context["event_sink"].emit_tool_call(tool_name, args, ...)
@@ -197,7 +197,7 @@ class Runner:
                         cfg = {}
                     paired.append((cfg, score))
 
-                t1 = datetime.utcnow()
+                t1 = datetime.now(timezone.utc)
                 duration_ms = int((t1 - t0).total_seconds() * 1000)
 
                 test_results: list[Result] = []
@@ -290,7 +290,7 @@ class Runner:
             for batch in all_results:
                 results.extend(batch)
 
-        t_end = datetime.utcnow()
+        t_end = datetime.now(timezone.utc)
         passed = all(r.passed for r in results) if results else True
         return Run(
             run_id=run_id,
