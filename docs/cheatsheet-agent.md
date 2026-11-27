@@ -8,7 +8,7 @@ Scannable in 30 seconds.
 ## Prerequisites
 
 ```bash
-eva serve --contracts-dir ./contracts    # gateway on :8080
+eva serve --no-auth --contracts-dir ./contracts    # gateway on :8080, no API-key auth (local)
 curl http://localhost:8080/health        # → {"status":"ok"}
 eva version                              # verify CLI
 ```
@@ -19,7 +19,7 @@ eva version                              # verify CLI
 
 ```
 1. Validate    →  eva contract validate <file>  / (offline — no server needed)
-2. Serve       →  eva serve (gateway must be running for proxy/invoke flows)
+2. Serve       →  eva serve --no-auth (gateway must be running for proxy/invoke flows)
 3. Run eval    →  eva run --dataset <path> --target <url>  (offline batch eval)
 4. Proxy       →  POST /v1/proxy  (live gate: forward + evaluate in one call)
 5. Invoke      →  POST /v1/contract/invoke  (contract-bound single call)

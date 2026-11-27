@@ -16,8 +16,9 @@ Missing or invalid key → `401` with the structured error shown under
 [Calling `POST /v1/contract/invoke`](#calling-post-v1contractinvoke).
 
 Keys are looked up in the key store configured by `EVA_REDIS_URL` (see
-[Security](security.md)). API-key auth is applied when `EVA_REDIS_URL` is set;
-what the gateway does when no key store is configured is not covered here.
+[Security](security.md)). `eva serve` refuses to start without a key store
+unless `--no-auth` is passed; with `--no-auth` no endpoint requires a key and
+the header is ignored.
 
 **Exempt paths** (no auth required):
 

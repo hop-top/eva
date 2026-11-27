@@ -47,8 +47,10 @@ system_prompt: "You are a helpful assistant."
 2. Run the gateway:
 
 ```sh
-eva serve --contracts-dir ./contracts
+eva serve --no-auth --contracts-dir ./contracts
 ```
+
+`--no-auth` serves without API-key authentication, which suits local use. Without it `eva serve` needs a key store (`EVA_REDIS_URL`); see [Security](security.md).
 
 3. Invoke your agent:
 

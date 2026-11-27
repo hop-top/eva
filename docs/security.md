@@ -67,33 +67,43 @@ All other paths require a valid `X-Eva-Key`.
 
 ---
 
-## Disabling Auth (Dev Mode)
+## Running Without Auth (`--no-auth`)
 
-Auth is implemented as a middleware factory. To disable in development:
+`eva serve` requires a key store. With no `EVA_REDIS_URL` set and no
+`--no-auth`, it prints an error naming both remedies on stderr and exits with
+code `2` without binding a port.
 
-```python
-from server.app import create_app
+For local development, or when something in front of Eva authenticates callers,
+pass `--no-auth`:
 
-app = create_app(middleware_factories=[])   # no auth middleware
+```sh
+eva serve --no-auth
 ```
 
-Or simply: do not set `EVA_REDIS_URL`. Without Redis, the `_NullStateAdapter`
-is used — it rejects all keys, effectively making every non-exempt request
-return `401`. For true no-auth dev mode, pass `middleware_factories=[]`.
+`--no-auth` serves every route without authentication and prints a warning on
+stderr at every start. It wins even when `EVA_REDIS_URL` is set (Redis is also
+used for other state). It applies in every mode: single process, `--workers`,
+`--reload`. `--no-auth` sets `EVA_NO_AUTH` for the worker and reload processes
+it spawns; that variable is internal, not a user-facing switch.
 
-> Never disable auth in production.
+> `eva serve` binds `0.0.0.0` by default. Never use `--no-auth` on a network
+> you do not control.
+
+### Other ways to start the gateway
+
+The refusal is a property of `eva serve`. Code that builds the app itself
+behaves as before: `create_app()` and the module-level app
+(`uvicorn server.app:app`) enforce auth only when `EVA_REDIS_URL` is set, and
+serve every route unauthenticated otherwise. Passing
+`middleware_factories=[]` does not disable auth when `EVA_REDIS_URL` is set.
 
 ---
 
 ## Behaviour Without Redis
 
-When `EVA_REDIS_URL` is not set:
-
-- `_NullStateAdapter` activates.
-- All `X-Eva-Key` values rejected (`401 Invalid API key`).
-- Exempt paths still served normally.
-
-Set `EVA_REDIS_URL` before launching Eva to enable key validation.
+When `EVA_REDIS_URL` is not set, no key store exists and no `X-Eva-Key` can be
+validated. `eva serve` therefore refuses to start unless `--no-auth` is given
+(see above); it never answers `401` for lack of a key store.
 
 ---
 
@@ -128,4 +138,4 @@ firewalled or uses private networking.
 - Old keys deleted after rotation.
 - `/health` and `/docs` locked down at proxy layer if needed.
 - HTTPS terminated at load balancer.
-- `middleware_factories=[]` only in dev/test — never in production.
+- `--no-auth` only in dev/test or behind your own authentication — never exposed directly.
