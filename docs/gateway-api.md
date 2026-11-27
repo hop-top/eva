@@ -12,8 +12,12 @@ All non-exempt endpoints require:
 X-Eva-Key: <api-key>
 ```
 
-Missing or invalid key → `401 {"detail": "Missing X-Eva-Key header"}` /
-`401 {"detail": "Invalid API key"}`.
+Missing or invalid key → `401` with the structured error shown under
+[Calling `POST /v1/contract/invoke`](#calling-post-v1contractinvoke).
+
+Keys are looked up in the key store configured by `EVA_REDIS_URL` (see
+[Security](security.md)). API-key auth is applied when `EVA_REDIS_URL` is set;
+what the gateway does when no key store is configured is not covered here.
 
 **Exempt paths** (no auth required):
 
@@ -171,6 +175,125 @@ X-Eva-Key: <key>
 ```json
 {"detail": "Contract registry not initialized"}
 ```
+
+---
+
+### Calling `POST /v1/contract/invoke`
+
+The caller-side view of the endpoint above: what to send and which response
+to expect for each outcome. Send the contract name and the payload to check as
+`body`. Every response is JSON.
+
+```sh
+curl -sS -X POST http://localhost:8080/v1/contract/invoke \
+  -H "Content-Type: application/json" \
+  -H "X-Eva-Key: eva_test_key" \
+  -d '{"contract": "echo_policy", "body": {"message": "hi"}}'
+```
+
+| Status | `eva_status` | Meaning |
+|--------|--------------|---------|
+| `200` | `pass` | Request valid, agent answered, all evaluators passed |
+| `422` | `contract_violation` | Evaluators failed after retries |
+| `400` | `request_invalid` | `body` does not match the contract's `request_schema` |
+| `401` | `unauthorized` | `X-Eva-Key` missing or not a known key |
+| `404` | — | No contract with that name |
+| `503` | — | Contract registry not initialised |
+
+#### `200` — pass
+
+```json
+{
+  "eva_status": "pass",
+  "attempts": 1,
+  "response": {"reply": "hello world"},
+  "request_id": "<uuid>",
+  "trace_id": null
+}
+```
+
+`response` is the agent's response, parsed as JSON when it is JSON and
+returned as a string otherwise. `trace_id` is `null` when tracing is off.
+
+#### `422` — contract violation
+
+```json
+{
+  "eva_status": "contract_violation",
+  "attempts": 3,
+  "violations": [
+    {
+      "evaluator": "contains",
+      "score": 0.0,
+      "reason": "Response does not contain 'NOPE'"
+    }
+  ],
+  "request_id": "<uuid>",
+  "trace_id": null
+}
+```
+
+`violations` has one entry per failed evaluator; `reason` may be `null`.
+
+A request whose JSON envelope is malformed (for example `contract` missing)
+is also rejected with `422`, but in FastAPI's shape, with no `eva_status`:
+
+```json
+{"detail": [{"type": "missing", "loc": ["body", "contract"], "msg": "Field required", "input": {"body": {}}}]}
+```
+
+#### `400` — request invalid
+
+```json
+{
+  "eva_status": "request_invalid",
+  "violations": [
+    {"field": "$root", "message": "'message' is a required property"}
+  ],
+  "contract": "echo_policy"
+}
+```
+
+The agent is not called.
+
+#### `401` — missing or invalid key
+
+```json
+{
+  "detail": "Missing X-Eva-Key header",
+  "eva_status": "unauthorized",
+  "violations": [
+    {"field": "X-Eva-Key", "message": "Missing X-Eva-Key header"}
+  ]
+}
+```
+
+An unknown key returns the same shape with `"Invalid API key"` in `detail`
+and in the violation's `message`. The agent is not called.
+
+#### `404` — unknown contract
+
+```json
+{"detail": "Contract 'nope' not found"}
+```
+
+#### `503` — registry not initialised
+
+```json
+{"detail": "Contract registry not initialized"}
+```
+
+`eva serve` always initialises the registry (empty when no contracts load, so
+an unknown name is `404`); `503` arises only when the app is created without
+one.
+
+#### Stability
+
+The exec-step result shape (`exit_code`, `stdout`, `stderr`; see
+[Contracts for exec-step output](contract-yaml-reference.md#contracts-for-exec-step-output-tlc-flow-exec))
+and the `exit_code` alias for the `status_code` evaluator
+([reference](evaluators-reference.md#status_code--exit_code)) are stable for
+callers. A caller that sends an exec step's output as `body` can rely on both.
 
 ---
 
