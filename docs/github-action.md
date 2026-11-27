@@ -160,7 +160,7 @@ The action runs the following steps internally:
 
 1. **Set up Python** — installs the requested Python version via `actions/setup-python`.
 2. **Install uv** — installs the [uv](https://github.com/astral-sh/uv) package manager.
-3. **Install Eva** — installs `eva[server]` at the requested version using `uv pip install`.
+3. **Install Eva** — installs `hop-top-eva[server]` at the requested version using `uv pip install`.
 4. **Validate contracts** — runs `eva contract validate` on every YAML file in
    `contracts-dir` as a pre-flight check (failures are non-fatal at this stage).
 5. **Run Eva evaluation** — executes `eva run` with your dataset and contracts, captures

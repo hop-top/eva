@@ -17,15 +17,15 @@ contracts on live traffic.
 ## Install
 
 ```sh
-pip install eva          # core + CLI
-pip install eva[server]  # + gateway server
+pip install hop-top-eva          # core + CLI
+pip install hop-top-eva[server]  # + gateway server
 ```
 
 Or with uv:
 
 ```sh
-uv add eva
-uv add eva[server]
+uv add hop-top-eva
+uv add hop-top-eva[server]
 ```
 
 ## Development
