@@ -378,6 +378,8 @@ def test_judge_evaluator_without_judge_is_skipped_with_reason(tmp_path):
 
 
 def test_judge_configured_skip_reason_differs(tmp_path):
+    from core.llm import LiteLLMAdapter
+
     contract = _write(
         tmp_path / "c.yaml",
         """
@@ -387,7 +389,9 @@ def test_judge_configured_skip_reason_differs(tmp_path):
           - name: relevance
         """,
     )
-    report = evaluate_contract(contract, "ok", judge_configured=True)
+    report = evaluate_contract(
+        contract, "ok", llm_adapter=LiteLLMAdapter("openai/m")
+    )
     assert report.passed is True
     assert len(report.skipped_judge) == 1
     assert report.skipped_judge[0].startswith("relevance: ")

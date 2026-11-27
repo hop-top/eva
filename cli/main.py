@@ -167,6 +167,14 @@ def run(
         help="Output: 'text' (default) or 'json'. Dataset mode: 'json' dumps the Run (implies --no-tui).",
     ),
     quiet: bool = typer.Option(False, "--quiet", help="Standalone mode: suppress passing evaluator output"),
+    prompt: str | None = typer.Option(
+        None, "--prompt",
+        help="Standalone mode: request prompt text for judge evaluators",
+    ),
+    prompt_file: str | None = typer.Option(
+        None, "--prompt-file",
+        help="Standalone mode: file with the request prompt ('-' for stdin; not with --input -)",
+    ),
 ):
     """Run evaluations.
 
@@ -178,8 +186,29 @@ def run(
         mapping in the dataset; flags override its fields).
       * Standalone contract mode: `eva run --contract c.yaml --input data.json`
         — evaluates a single response artifact against a contract. No agent
-        call, no gateway. Intended for CI smoke and local dev.
+        call, no gateway. Intended for CI smoke and local dev. Judge
+        evaluators run when a judge is configured and `--prompt` /
+        `--prompt-file` supplies the request prompt; otherwise skipped.
     """
+    if (prompt is not None or prompt_file is not None) and (
+        contract is None or input_path is None
+    ):
+        console.print(
+            "[red]Error:[/red] --prompt/--prompt-file require --contract and --input"
+        )
+        raise typer.Exit(2)
+    if prompt is not None and prompt_file is not None:
+        console.print(
+            "[red]Error:[/red] --prompt and --prompt-file are mutually exclusive"
+        )
+        raise typer.Exit(2)
+    if prompt_file == "-" and input_path == "-":
+        console.print(
+            "[red]Error:[/red] --prompt-file - and --input - both read stdin; "
+            "use a file for one"
+        )
+        raise typer.Exit(2)
+
     # Standalone contract mode dispatch
     if contract is not None or input_path is not None:
         if contract is None or input_path is None:
@@ -203,6 +232,8 @@ def run(
             input_path=input_path,
             fmt=chosen_fmt,
             quiet=quiet,
+            prompt=prompt,
+            prompt_file=prompt_file,
         )
         raise typer.Exit(code)
 
