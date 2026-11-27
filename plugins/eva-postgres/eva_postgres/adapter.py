@@ -28,6 +28,9 @@ class PostgresStorageAdapter:
         adapter.setup()  # creates tables
         adapter.save_run(run)
         run = adapter.get_run("run_id")
+
+    Timestamps are UTC; see the eva-postgres section of docs/plugins-guide.md
+    for session time zone requirements on older tables.
     """
 
     def __init__(self, url: str) -> None:
