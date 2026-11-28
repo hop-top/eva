@@ -421,7 +421,7 @@ class Runner:
 
         t_end = datetime.now(timezone.utc)
         passed = all(r.passed for r in results) if results else True
-        cases = [outcomes[id(t)] for t in dataset.tests]
+        cases = [outcomes[id(t)] for t in dataset.scored_tests()]
         return Run(
             run_id=run_id,
             dataset=dataset.name,
