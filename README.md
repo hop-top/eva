@@ -35,7 +35,7 @@ matches the installed version: nothing is installed until you ask.
 
 ```sh
 eva skill show                  # print SKILL.md
-eva skill show rest-api         # print a reference (rest-api, contract-yaml)
+eva skill show rest-api         # print a reference (rest-api, contract-yaml, benchmarks)
 eva skill install               # copy to ~/.claude/skills/eva-cli
 eva skill install --dir <path> --dry-run   # preview into another directory
 ```

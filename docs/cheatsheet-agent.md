@@ -7,6 +7,7 @@ the installed version. Read it from the CLI:
 eva skill show                  # when and how to use eva: modes, exit codes, escalation, gotchas
 eva skill show rest-api         # gateway routes, auth header, status codes
 eva skill show contract-yaml    # contract fields, modes, evaluators
+eva skill show benchmarks       # growing datasets, --missing, per-model results
 eva skill install               # copy the skill to ~/.claude/skills/eva-cli
 ```
 
