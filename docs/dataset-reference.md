@@ -279,6 +279,8 @@ Every `eva run` writes the run, one invocation per case and one `agent`
 usage record per chat call to `.eva/state.db`:
 
 - `eva runs list --dataset local-coding-reasoning` — runs, pass counts.
+  `--format json` on `runs list` / `runs show` for scripts
+  ([cli-reference.md](cli-reference.md#eva-runs-list--eva-runs-show)).
 - `eva runs show --run-id <id>` — per case: provider, model, status,
   total duration, **model latency**, **tokens in/out**.
 - `eva invocations show --id <inv>` — request, response (answer only),

@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from typing import Optional
 
+import json
 import typer
 from rich.console import Console
 from rich.table import Table
 
 console = Console()
+err_console = Console(stderr=True)
 
 # ---------------------------------------------------------------------------
 # Sub-apps
@@ -30,6 +32,42 @@ def _fmt_opt(v, fmt: str = "{}") -> str:
     return fmt.format(v) if v is not None else _NA
 
 
+_FORMATS = ("text", "json")
+
+
+def _check_format(fmt: str) -> str:
+    """Validate --format; bad value exits 2 with the error on stderr."""
+    if fmt not in _FORMATS:
+        err_console.print(
+            f"[red]Error:[/red] --format must be 'text' or 'json', got {fmt!r}"
+        )
+        raise typer.Exit(2)
+    return fmt
+
+
+def _emit_json(payload: dict) -> None:
+    """Machine-readable output: one JSON object on stdout, no styling."""
+    typer.echo(json.dumps(payload, indent=2))
+
+
+def _iso(dt) -> Optional[str]:
+    return dt.isoformat() if dt else None
+
+
+def _run_json(run) -> dict:
+    n_pass = sum(1 for x in run.results if x.passed)
+    return {
+        "run_id": run.run_id,
+        "dataset": run.dataset,
+        "target": run.target,
+        "status": "pass" if run.passed else "fail",
+        "passed": run.passed,
+        "started_at": _iso(run.started_at),
+        "duration_ms": run.duration_ms,
+        "summary": {"passed": n_pass, "total": len(run.results)},
+    }
+
+
 def _storage(db: Optional[str] = None):
     from core.storage import SqliteStorage
     db_url = f"sqlite:///{db}" if db else "sqlite:///.eva/state.db"
@@ -49,12 +87,20 @@ def runs_list(
     ),
     limit: int = typer.Option(50, "--limit", help="Max rows to return."),
     db: Optional[str] = typer.Option(None, "--db", help="Path to SQLite DB file."),
+    fmt: str = typer.Option(
+        "text", "--format", help="Output: 'text' (default) or 'json'."
+    ),
 ) -> None:
     """List evaluation runs."""
     from core.query import list_runs
 
+    _check_format(fmt)
     storage = _storage(db)
     runs = list_runs(storage, dataset=dataset, target=target, status=status, limit=limit)
+
+    if fmt == "json":
+        _emit_json({"runs": [_run_json(r) for r in runs]})
+        raise typer.Exit(0)
 
     if not runs:
         console.print("[yellow]No runs found.[/yellow]")
@@ -95,18 +141,54 @@ def runs_show(
         help="Also report accuracy on cases whose metadata.added is on/after "
         "this ISO date (YYYY-MM-DD).",
     ),
+    fmt: str = typer.Option(
+        "text", "--format", help="Output: 'text' (default) or 'json'."
+    ),
 ) -> None:
     """Show run details, per-category pass counts and its invocations."""
     from core.query import list_runs, list_invocations
 
+    _check_format(fmt)
     since_date = _parse_since_or_exit(since)
     storage = _storage(db)
     runs = list_runs(storage, limit=1000)
     run = next((r for r in runs if r.run_id == run_id), None)
 
     if run is None:
-        console.print(f"[red]Run not found:[/red] {run_id}")
+        (err_console if fmt == "json" else console).print(
+            f"[red]Run not found:[/red] {run_id}"
+        )
         raise typer.Exit(1)
+
+    if fmt == "json":
+        from core.categories import category_scores, since_score
+        from core.query import get_run_cases
+
+        invocations = list_invocations(storage, run_id=run_id, limit=500)
+        cases = get_run_cases(storage, run_id)
+        _emit_json({
+            "run": _run_json(run),
+            "invocations": [_invocation_json(storage, i) for i in invocations],
+            "results": [
+                {
+                    "test_id": x.test_id,
+                    "evaluator": x.evaluator,
+                    "passed": x.passed,
+                    "score": x.score.value,
+                    "reason": x.score.reason,
+                }
+                for x in run.results
+            ],
+            "categories": {
+                name: score.model_dump()
+                for name, score in category_scores(cases).items()
+            },
+            "since": (
+                since_score(cases, since_date).model_dump() if since_date else None
+            ),
+            "cases": [c.model_dump() for c in cases],
+        })
+        raise typer.Exit(0)
 
     # Run summary
     started = run.started_at.strftime("%Y-%m-%d %H:%M:%S") if run.started_at else _NA
@@ -180,6 +262,25 @@ def _parse_since_or_exit(since: Optional[str]):
     except ValueError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(2)
+
+def _invocation_json(storage, inv) -> dict:
+    usage = [
+        u for u in storage.get_usage_records(inv.invocation_id)
+        if u.scope == "agent"
+    ]
+    u = usage[0] if usage else None
+    return {
+        "invocation_id": inv.invocation_id,
+        "test_id": inv.test_id,
+        "provider": inv.provider,
+        "model": inv.model,
+        "status": inv.status,
+        "duration_ms": inv.duration_ms,
+        "model_latency_ms": u.latency_ms if u else None,
+        "prompt_tokens": u.prompt_tokens if u else None,
+        "completion_tokens": u.completion_tokens if u else None,
+        "contract_name": inv.contract_name,
+    }
 
 
 def _status_cell(status: Optional[str]) -> str:
