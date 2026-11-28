@@ -165,6 +165,8 @@ BUILTIN_EVALUATOR_FACTORIES: dict[str, EvaluatorFactory] = {
         language=cfg.get("language", "python"),
         timeout=cfg.get("timeout", 10),
         test_code=cfg.get("test_code", ""),
+        memory_mb=cfg.get("memory_mb", 512),
+        max_file_mb=cfg.get("max_file_mb", 16),
     ),
     # Tool-call log vs the case's metadata.expected_calls; deterministic.
     "tool_call_match": lambda cfg, _llm: ToolCallMatchEvaluator(

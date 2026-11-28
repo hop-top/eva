@@ -100,9 +100,11 @@ and never scored. Built-in evaluators for model grading: `code_tests`
 
 > [!CAUTION]
 > `code_tests` and `code_test_passes` **execute model output** on the
-> machine running eva. Use them only on trusted runs, inside a sandbox
-> (container/VM/throwaway user). Isolation is best-effort: no network or
-> filesystem blocking.
+> machine running eva. `code_tests` runs it in a contained subprocess
+> (throwaway dir, scrubbed env, limits, network/filesystem containment where
+> the OS allows; not a security boundary, see the evaluators reference);
+> `code_test_passes` has no isolation. Use them only on trusted runs, inside
+> a sandbox (container/VM/throwaway user).
 
 Full reference: [docs/dataset-reference.md](docs/dataset-reference.md).
 
