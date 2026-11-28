@@ -38,6 +38,7 @@ Loads a dataset of test cases and calls a live agent for each.
 | `--model` | Optional. Chat target model id. |
 | `--api-key-env` | Optional. Env var **name** holding the chat target API key. |
 | `--max-tokens`, `--temperature`, `--top-p`, `--timeout-s` | Optional. Chat target sampling / timeout. |
+| `--target-id` | Optional. Identity of the target in stored per-case results (see `eva results`). Default: `provider:model` for chat targets, the URL otherwise. |
 | `--concurrency` | Optional. Number of concurrent test executions. Default: `1`. |
 | `--no-tui` | Optional. Plain-text output for CI. |
 | `--since` | Optional. `YYYY-MM-DD`. Also report accuracy on cases whose `metadata.added` is on or after the date. Invalid date: exit `2`. |
@@ -182,6 +183,69 @@ entries.
 - `1`: `runs show`: run not found (message on stderr in `json` mode).
 - `2`: Bad input: `--format` other than `text` or `json`, or a missing or
   unknown flag.
+
+---
+
+## `eva results list` / `export` / `import`
+
+Per-case results per target, kept across runs. Every `eva run` in dataset
+mode stores one record per case in `.eva/state.db` (or the `--db` file),
+keyed by dataset, target id, case id and case hash. The **first result for a
+key stands**: later runs never change it. Not recorded, so retried on a
+later run: cases whose target call failed (upstream error) and cases no
+evaluator applied to. Record and file format:
+[dataset-reference.md](dataset-reference.md#per-case-results).
+
+| Command | Flags |
+|---|---|
+| `eva results list` | `--dataset` (required, name as stored), `--target`, `--status pass\|fail`, `--limit` (1000), `--dataset-file`, `--db`, `--format text\|json` |
+| `eva results export` | `--dataset` (required), `--dir` (required), `--target`, `--dataset-file`, `--dry-run`, `--db`, `--format text\|json` |
+| `eva results import PATH...` | files or directories of `*.jsonl`, `--dry-run`, `--db`, `--format text\|json` |
+
+`--dataset-file PATH` (a dataset file or directory) restricts list/export
+to that dataset's current scored cases: superseded cases and results for a
+case whose content changed drop out. It refuses a dataset with duplicate
+case ids (exit `2`). Without it, every stored record for the dataset name is
+used, so a non-append-only dataset whose case text changed keeps one record
+per case hash.
+
+```bash
+eva results list --dataset my_suite --target openai:my-model --format json
+eva results export --dataset my_suite --dir results/ --dry-run
+eva results import results/
+```
+
+`--format json` writes one JSON object to stdout; messages and conflict
+lines go to stderr.
+
+- `list`: `{"results": [record, ...]}`, ordered by target, case, hash, date.
+  No match gives `{"results": []}`, exit `0`.
+- `export`: `{"dry_run": bool, "files": [{"path", "records"}], "conflicts": [...]}`.
+  Writes `<dir>/<dataset>/<target>.jsonl`. An existing file is merged, not
+  replaced: records it holds that the store lacks are kept. Re-exporting an
+  unchanged store is byte-identical. `--dry-run` writes nothing.
+- `import`: `{"dry_run", "inserted", "unchanged", "replaced", "conflicts": [...],
+  "hash_mismatches": [...]}`. Idempotent. `--dry-run` reports only.
+
+Import conflict rules (the same merge is used when exporting into an
+existing file):
+
+- Key absent: inserted.
+- Key present, same content (ignoring run id and date): unchanged.
+- Key present, different content: the record with the earlier `at` stands
+  (tie: smaller `run_id`); the pair is reported as a conflict with
+  `kept_run_id` and `other_run_id`. Nothing is overwritten silently.
+- Same case under another case hash: both are kept and listed under
+  `hash_mismatches`.
+- A malformed line or unsupported record version aborts the whole import
+  with nothing written.
+
+### Exit Codes:
+- `0`: Done (including nothing to do and empty lists).
+- `1`: `import` / `export` found conflicts (the earlier result is kept).
+- `2`: Bad input: bad `--format` or `--status`, unreadable or malformed
+  JSONL, missing path, unreadable dataset file, duplicate case ids with
+  `--dataset-file`.
 
 ---
 

@@ -9,7 +9,9 @@ import pluggy
 
 from core.categories import CaseOutcome, case_labels, category_scores
 from core.chat_targets import ChatResult, TargetError
-from core.dataset import Dataset
+from core.adapters import CaseResultStore
+from core.case_results import build_record
+from core.dataset import Dataset, case_hash
 from core.events import EventSink, NullEventSink
 from core.models import (
     Artifact, EvaluatorResult, Invocation, Result, Run, Score, UsageRecord,
@@ -386,6 +388,23 @@ class Runner:
                     tool_events = invocation_sink.drain()
                     if tool_events:
                         self.storage.save_tool_calls(invocation_id, tool_events)
+
+                # --- per-case results: first result stands, upstream
+                # errors and cases no evaluator applied to are not recorded.
+                if isinstance(self.storage, CaseResultStore) and not target_error:
+                    case_rec = build_record(
+                        dataset=dataset.name,
+                        target_id=dataset.result_target_id,
+                        case=test.id,
+                        case_hash_hex=case_hash(test),
+                        results=test_results,
+                        run_id=run_id,
+                        at=started_at.isoformat(),
+                        provider=chat.provider if chat else None,
+                        model=chat.model if chat else None,
+                    )
+                    if case_rec is not None:
+                        self.storage.put_case_results([case_rec])
 
                 if on_test_done is not None:
                     on_test_done()

@@ -85,6 +85,8 @@ class Dataset(BaseModel):
     tests: list[EvaTestCase] = []
     # Opt-in: cases are never edited or removed (see core/append_only.py).
     append_only: bool = False
+    # Explicit identity for stored per-case results (see result_target_id).
+    target_id: str | None = None
 
     def scored_tests(self) -> list[EvaTestCase]:
         """Cases that run and score: all of them, minus superseded ones
@@ -93,6 +95,27 @@ class Dataset(BaseModel):
             return list(self.tests)
         gone = {t.supersedes for t in self.tests if t.supersedes}
         return [t for t in self.tests if t.id not in gone]
+
+    @property
+    def result_target_id(self) -> str:
+        """Identity of the target in per-case results, stable across
+        machines: explicit ``target_id`` / chat ``id``, else ``provider:model``
+        for chat targets (no base URL, no sampling), else the target URL."""
+        if self.target_id:
+            return self.target_id
+        if self.chat is not None:
+            return self.chat.id or f"{self.chat.provider}:{self.chat.model}"
+        return self.target
+
+    @model_validator(mode="after")
+    def _reserved_evaluator_names(self) -> "Dataset":
+        for ev in self.evaluators:
+            if isinstance(ev, dict) and ev.get("name") == "target":
+                raise ValueError(
+                    "evaluator name 'target' is reserved (it marks upstream "
+                    "errors); rename the evaluator"
+                )
+        return self
 
     @model_validator(mode="before")
     @classmethod
@@ -121,6 +144,7 @@ def load_dataset(
     path: Path,
     target: str | None = None,
     chat: dict | None = None,
+    target_id: str | None = None,
 ) -> Dataset:
     """Load a YAML/JSONL dataset.
 
@@ -147,7 +171,7 @@ def load_dataset(
                 "target URL (or chat target provider/model) required: "
                 "set it in dataset.yaml or pass it on the command line"
             )
-        return Dataset(tests=tests, **raw)
+        return _with_id(Dataset(tests=tests, **raw), target_id)
 
     if path.suffix == ".jsonl":
         if not target and not chat:
@@ -160,9 +184,9 @@ def load_dataset(
             line = line.strip()
             if line:
                 tests.append(EvaTestCase.model_validate(json.loads(line)))
-        return Dataset.model_validate(
+        return _with_id(Dataset.model_validate(
             {"name": path.stem, "target": target or chat, "tests": tests}
-        )
+        ), target_id)
 
     raw = yaml.safe_load(path.read_text())
     if target:
@@ -171,7 +195,13 @@ def load_dataset(
         base = raw.get("target")
         raw["target"] = {**(base if isinstance(base, dict) else {}), **chat}
     tests = [EvaTestCase.model_validate(t) for t in raw.pop("tests", [])]
-    return Dataset(tests=tests, **raw)
+    return _with_id(Dataset(tests=tests, **raw), target_id)
+
+
+def _with_id(ds: Dataset, target_id: str | None) -> Dataset:
+    if target_id:
+        ds.target_id = target_id
+    return ds
 
 
 MANIFEST_NAMES = ("dataset.yaml", "dataset.yml")

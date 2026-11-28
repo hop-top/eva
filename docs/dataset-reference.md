@@ -209,6 +209,33 @@ tests:
 Sample dataset:
 [`examples/tool-call-match.yaml`](examples/tool-call-match.yaml).
 
+### Target identity
+
+Stored per-case results are keyed by a **target id** that must not depend
+on the machine. `Run.target` for a chat target carries the base URL
+(`provider:model@base_url`), which differs between machines; the target id
+does not:
+
+| Target | Target id |
+|---|---|
+| chat target | `provider:model` (base URL and sampling settings are not part of it) |
+| URL target | the URL |
+| explicit | `id:` in the chat `target:` mapping, a top-level `target_id:`, or `eva run --target-id` (flag wins) |
+
+Two configurations that must not share results (different system prompt or
+temperature, say) need different explicit ids. The sampling settings used
+are not stored in a record.
+
+```yaml
+target:
+  provider: openai
+  model: my-model
+  id: my-model-greedy
+```
+
+The evaluator name `target` is reserved (it marks upstream errors); a
+dataset that uses it fails to load (exit `2`).
+
 ### CLI overrides
 
 ```sh
@@ -272,6 +299,41 @@ that applied to it passed.
 - `runs show` and `compare` derive the same figures from the stored
   invocations (each keeps its case's category and added date in its
   metadata) and evaluator results.
+
+## Per-case results
+
+A result for a case on a target stays valid as long as the case is
+unchanged, so results are kept per case, not per run. Query and move them
+with `eva results` ([cli-reference.md](cli-reference.md#eva-results-list--export--import)).
+
+A record is keyed by `(dataset, target_id, case, case_hash)`. `case_hash` is
+`sha256:` followed by the hex digest from the case hash described under
+[Append-only datasets](#append-only-datasets) (the results layer adds the
+prefix, so the algorithm shows in stored data). The first record for a key
+stands; later runs do not change it. Not recorded: cases whose target call
+failed (they carry the `target` pseudo-evaluator result and an
+`upstream_error` invocation) and cases no evaluator applied to.
+A case passes when every evaluator that applied to it passed; `score` is the
+mean of their scores.
+
+```json
+{"v": 1, "dataset": "my_suite", "target_id": "openai:my-model",
+ "case": "code-add", "case_hash": "sha256:9f2c...", "passed": true,
+ "score": 1.0,
+ "evaluators": [{"name": "code_tests", "passed": true, "score": 1.0,
+                 "reason": null, "mode": "binary"}],
+ "run_id": "3fa91c02", "at": "2026-01-02T03:04:05+00:00",
+ "provider": "openai", "model": "my-model"}
+```
+
+`at` is the UTC start of the run that produced the record. `v` is the
+record version (`1`); an import refuses other versions.
+
+Export layout: `<dir>/<dataset>/<target>.jsonl`, one record per line, keys
+sorted, lines sorted by case, hash, date. Directory and file names are the
+dataset name and target id with characters outside `A-Za-z0-9._-` replaced by
+`_`, plus an 8-character hash of the original, so distinct ids never share a
+file. The files are meant to be tracked in git: they merge as line appends.
 
 ## Comparing models over time
 

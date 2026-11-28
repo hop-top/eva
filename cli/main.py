@@ -153,6 +153,11 @@ def run(
     timeout_s: float | None = typer.Option(
         None, "--timeout-s", help="Chat target request timeout (seconds)"
     ),
+    target_id: str | None = typer.Option(
+        None, "--target-id",
+        help="Dataset mode: identity of the target in stored per-case results "
+        "(default provider:model, or the URL).",
+    ),
     concurrency: int = typer.Option(1, "--concurrency", help="Number of concurrent tests"),
     no_tui: bool = typer.Option(False, "--no-tui", help="Disable rich TUI (for CI)"),
     contract: Path | None = typer.Option(
@@ -291,7 +296,9 @@ def run(
         )
         raise typer.Exit(2)
     try:
-        ds = load_dataset(dataset, target=target, chat=chat_flags or None)
+        ds = load_dataset(
+            dataset, target=target, chat=chat_flags or None, target_id=target_id
+        )
     except (ValueError, FileNotFoundError) as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(2)
@@ -675,6 +682,10 @@ def review_queue_cmd(
     console.print(table)
     console.print(f"\n[dim]{len(items)} item(s) in queue[/dim]")
 
+
+from cli.results_cmd import results_app
+
+app.add_typer(results_app, name="results")
 
 from cli.observe import (
     runs_app,
