@@ -112,6 +112,79 @@ they are listed under `skipped_judge` with a reason; exit code unaffected.
 
 ---
 
+## `eva runs list` / `eva runs show`
+
+Query runs stored in `.eva/state.db` (or the file given by `--db`).
+
+| Flag | Command | Description |
+|---|---|---|
+| `--dataset`, `--target`, `--status pass\|fail`, `--limit` | `list` | Filters; `--limit` defaults to `50`. |
+| `--run-id` | `show` | **Required**. Run to inspect. |
+| `--db` | both | Optional. Path to the SQLite DB file. |
+| `--format` | both | Optional. `text` (default, tables) or `json`. |
+
+```bash
+eva runs list --dataset my_suite --format json
+eva runs show --run-id 3fa91c02 --format json
+```
+
+With `--format json`, stdout carries exactly one JSON object and nothing
+else; errors go to stderr. Both shapes are objects, so fields can be added
+without breaking readers.
+
+`eva runs list --format json`:
+
+```json
+{
+  "runs": [
+    {
+      "run_id": "3fa91c02",
+      "dataset": "my_suite",
+      "target": "openai:my-model@http://localhost:12000/v1",
+      "status": "fail",
+      "passed": false,
+      "started_at": "2026-01-02T03:04:05",
+      "duration_ms": 120,
+      "summary": {"passed": 1, "total": 2}
+    }
+  ]
+}
+```
+
+No matching runs gives `{"runs": []}` and exit `0`. `summary` counts
+evaluator results (one per case and evaluator), as the text table does.
+
+`eva runs show --format json`:
+
+```json
+{
+  "run": { "...": "same fields as one entry of runs list" },
+  "invocations": [
+    {
+      "invocation_id": "...", "test_id": "c1", "provider": "openai",
+      "model": "my-model", "status": "pass", "duration_ms": 50,
+      "model_latency_ms": 40, "prompt_tokens": 7, "completion_tokens": 3,
+      "contract_name": null
+    }
+  ],
+  "results": [
+    {"test_id": "c1", "evaluator": "contains", "passed": true,
+     "score": 1.0, "reason": null}
+  ]
+}
+```
+
+Values that were not recorded are `null`. `invocations` is capped at 500
+entries.
+
+### Exit Codes:
+- `0`: Output written (including an empty `runs` list).
+- `1`: `runs show`: run not found (message on stderr in `json` mode).
+- `2`: Bad input: `--format` other than `text` or `json`, or a missing or
+  unknown flag.
+
+---
+
 ## `eva contract validate`
 
 Check the syntax and schema of a contract YAML file.
