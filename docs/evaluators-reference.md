@@ -323,6 +323,97 @@ Related: `code_block_runs` only **parses** blocks (no execution); `code_test_pas
 
 ---
 
+## `tool_call_match`
+
+Deterministic pass/fail on the [tool-call log](#tool-call-log): compares the
+calls the chat target returned with the case's expected calls. No judge
+model. Scores `1.0` or `0.0`; a `0.0` reason names the first mismatch
+(call numbers start at 1, in reply order).
+
+### Expected calls
+
+Per case, under `metadata.expected_calls`, in the possible_answer format of
+the Berkeley Function Calling Leaderboard (BFCL): one mapping per expected
+call, `function name -> {argument: [accepted values]}`.
+
+```yaml
+metadata:
+  expected_calls:
+    - get_weather:
+        city: [Paris, paris]     # any one of these
+        unit: [celsius, ""]      # "" among the values: argument may be omitted
+```
+
+- A bare mapping instead of a list is one call.
+- An argument without `""` among its values is required.
+- A value that is not a list is one accepted value. A list is always a set
+  of alternatives, so a list-valued argument needs a list of lists
+  (`ids: [[1, 2], [2, 1]]`).
+- Arguments the call passes that are not listed fail it (`unexpected
+  argument`).
+- Tool names match exactly.
+
+### Configuration Properties:
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `match` | `string` | No | Default `single`. See modes below. (`mode` is the pass/fail scoring mode shared by all evaluators.) |
+| `case_sensitive` | `boolean` | No | Compare strings case-sensitively. Default `true`. |
+| `normalize_whitespace` | `boolean` | No | Trim strings and collapse inner whitespace before comparing. Default `false`. |
+
+| `match` | Expected calls | Passes when |
+|---|---|---|
+| `single` | exactly one | the log holds exactly one call and it matches; a second call fails as `extra call`. |
+| `first` | exactly one | the first logged call matches; later calls are ignored. |
+| `ordered` | one or more | the log has the same number of calls and call *i* matches expected call *i*. |
+| `parallel` | one or more | the log has the same number of calls and they pair one-to-one with the expected calls in any order (alternatives are resolved by matching, not greedily). |
+| `none` | none | the log is empty. Applies even when the case has no `expected_calls`; `expected_calls: []` is accepted. |
+
+A mismatch in expected-call count for the mode (for example two calls under
+`single`, or `[]` under `ordered`) scores `0.0` with a reason.
+
+### Value comparison
+
+Type-aware. Numbers compare by value (`1` = `1.0`); booleans are not
+numbers; a string never equals a number (`"1"` != `1`); `null` equals
+`null`. Lists compare element by element and objects key by key, with the
+same rules (and the string options) applied inside. Strings are exact
+unless `case_sensitive: false` and/or `normalize_whitespace: true`.
+
+### Malformed arguments
+
+A call with `raw_args` set (arguments were not a valid JSON object) never
+matches an expected call that has a required argument; the reason says the
+arguments were not valid JSON and shows the raw string. Against an expected
+call whose arguments are all optional it is compared with `args == {}`.
+
+### Applicability
+
+Dataset-case evaluator. Outside `match: none`, a case without
+`metadata.expected_calls` is not applicable: no result is recorded for it.
+In contract mode (`eva run --contract`) and in the gateway there is no case
+and no tool-call log, so the evaluator scores `0.0` with the reason
+`needs a dataset case with metadata.expected_calls and the tool-call log of a chat-target run; not available here`.
+
+```yaml
+evaluators:
+  - name: tool_call_match
+    mode: binary
+    match: parallel
+tests:
+  - id: two-cities
+    input: Compare the weather in Paris and Rome.
+    tools: [...]
+    metadata:
+      expected_calls:
+        - get_weather: {city: [Paris]}
+        - get_weather: {city: [Rome]}
+```
+
+`match` applies to the whole dataset: put cases that need another mode in
+their own file. Sample: [`examples/tool-call-match.yaml`](examples/tool-call-match.yaml).
+
+---
+
 ## `latency`
 
 *(Planned for Phase 1 Integration)*
