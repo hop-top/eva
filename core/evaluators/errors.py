@@ -40,8 +40,12 @@ def build_evaluator(
     """
     try:
         return factory(cfg, llm)
-    except (JudgeAdapterRequired, EvaluatorConfigError):
+    except JudgeAdapterRequired:
         raise
+    except EvaluatorConfigError as e:
+        if e.evaluator is not None:  # already names its evaluator
+            raise
+        detail = str(e)
     except KeyError as e:
         detail = f"missing required key {e.args[0]!r}" if e.args else "missing required key"
     except re.error as e:

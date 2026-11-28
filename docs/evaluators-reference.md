@@ -15,6 +15,20 @@ evaluator that does not apply to a case (no result is recorded for that case) an
 from a judge evaluator with no judge configured (listed under `skipped`, the rest
 of the run proceeds).
 
+The settings of the programmatic evaluators are type-checked when the evaluator is
+built, and the message names the key and the value: `evaluator 'word_count': max must be an integer; got '100'`.
+Strings (`substring`, `pattern`, `field`, `step`, `test_code`, `assertion`) must be
+strings, flags (`case_sensitive`, `whole_word`, `require_citation`, `partial`, ...)
+must be `true` or `false`, counts (`min`, `max`, `memory_mb`, `max_file_mb`) and
+`status_code` `expected` must be integers, `timeout` a positive number of seconds,
+and list settings (`banlist`, `allowed_sources`, `required_h2`, `required_code_langs`,
+`instruction_id_list`, `expected_in`) lists of the right element type, not a bare
+string. Also rejected: a `json_schema_valid` `schema` that is not an object or not a
+valid JSON Schema, a `code_block_runs` `unsupported_action` other than `skip` or
+`fail`, a `tool_call_match` `match` other than `single`, `parallel`, `ordered`,
+`none` or `first`, and a `regex` or `last_paragraph_regex` `pattern` that does not
+compile.
+
 The same applies to contracts, `eva contract validate` and the gateway. A contract
 with an invalid evaluator configuration does not load: `eva run --contract` exits
 `2` and `eva contract validate` exits `1`, both with the same
