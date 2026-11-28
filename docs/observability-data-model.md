@@ -58,11 +58,14 @@ empty, so cost figures in `eva usage report` and `eva compare` are
 
 ### InvocationRecord
 
+`eva run` writes these rows. `eva serve` does not record gateway traffic
+yet: no gateway route writes to the store when started from the CLI.
+
 | Field | Type | Notes |
 |---|---|---|
 | `invocation_id` | string (UUID) | Primary key. |
 | `run_id` | string or null | Foreign key to `RunRecord`. |
-| `source` | string | `offline_run`, `gateway_proxy` or `contract_invoke`. `eva run` writes `offline_run`. |
+| `source` | string | `offline_run` (written by `eva run`); `gateway_proxy` and `contract_invoke` are reserved for gateway traffic. |
 | `dataset`, `test_id` | string or null | Dataset name and case id. |
 | `target` | string | Target URL or id. |
 | `provider`, `model`, `model_version` | string or null | Chat targets fill `provider` and `model`. |
