@@ -47,6 +47,7 @@ from core.evaluators.regex_match import RegexEvaluator
 from core.evaluators.sentence_paragraph_count import SentenceParagraphCountEvaluator
 from core.evaluators.status_code import ExitCodeEvaluator, StatusCodeEvaluator
 from core.evaluators.step_efficiency import StepEfficiencyEvaluator
+from core.evaluators.tool_call_match import ToolCallMatchEvaluator
 from core.evaluators.tool_correctness import ToolCorrectnessEvaluator
 from core.evaluators.tool_use import ToolUseEvaluator
 from core.evaluators.word_count import WordCountEvaluator
@@ -116,6 +117,9 @@ EVALUATOR_REGISTRY = {
     "markdown_structure": MarkdownStructureEvaluator,
     "sentence_paragraph_count": SentenceParagraphCountEvaluator,
 
+    # Tool-call log vs expected calls — programmatic
+    "tool_call_match": ToolCallMatchEvaluator,
+
     # Prose-assertion dispatcher (agent E)
     "prose_assertion": ProseAssertionEvaluator,
 }
@@ -167,6 +171,7 @@ __all__ = [
     "MarkdownStructureEvaluator",
     "SentenceParagraphCountEvaluator",
     "ProseAssertionEvaluator",
+    "ToolCallMatchEvaluator",
     "EVALUATOR_REGISTRY",
     "parse_score",
 ]
