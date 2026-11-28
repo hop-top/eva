@@ -34,6 +34,7 @@ from core.evaluators.code_block_runs import CodeBlockRunsEvaluator
 from core.evaluators.code_test_passes import CodeTestPassesEvaluator
 from core.evaluators.code_tests import CodeTestsEvaluator
 from core.evaluators.contains import ContainsEvaluator
+from core.evaluators.own_mode import OWN_MODE, check_pass_mode
 from core.evaluators.errors import EvaluatorConfigError, JudgeAdapterRequired
 from core.evaluators.equals import EqualsEvaluator, _MISSING as _EQUALS_MISSING
 from core.evaluators.content_quality import (
@@ -123,6 +124,25 @@ def _equals(cfg: dict, _llm: Any) -> Any:
     )
 
 
+def _refusal(cfg: dict, _llm: Any) -> Any:
+    # ``mode`` is only the pass mode; the evaluator's setting is ``refusal_mode``.
+    check_pass_mode("refusal", cfg.get("mode"))
+    return RefusalEvaluator(
+        mode=cv.choice(cfg, "refusal_mode", "forbid", OWN_MODE["refusal"][1]),
+    )
+
+
+def _sentence_paragraph_count(cfg: dict, _llm: Any) -> Any:
+    check_pass_mode("sentence_paragraph_count", cfg.get("mode"))
+    return SentenceParagraphCountEvaluator(
+        mode=cv.choice(
+            cfg, "count_mode", "sentence", OWN_MODE["sentence_paragraph_count"][1]
+        ),
+        min=cv.opt_integer(cfg, "min"),
+        max=cv.opt_integer(cfg, "max"),
+    )
+
+
 # Programmatic factories read every key through ``config_values`` so a
 # wrong-typed value is an EvaluatorConfigError naming the key. Keep a new
 # programmatic evaluator's keys on that path.
@@ -172,9 +192,7 @@ BUILTIN_EVALUATOR_FACTORIES: dict[str, EvaluatorFactory] = {
         whole_word=cv.boolean(cfg, "whole_word", True),
         case_sensitive=cv.boolean(cfg, "case_sensitive", False),
     ),
-    "refusal": lambda cfg, _llm: RefusalEvaluator(
-        mode=cfg.get("mode", "forbid"),
-    ),
+    "refusal": _refusal,
 
     # P2 Tier-2 structure (agent D) — programmatic
     "citation": lambda cfg, _llm: CitationEvaluator(
@@ -228,11 +246,7 @@ BUILTIN_EVALUATOR_FACTORIES: dict[str, EvaluatorFactory] = {
         required_code_langs=cv.strings(cfg, "required_code_langs"),
         disallow_broken_local_links=cv.boolean(cfg, "disallow_broken_local_links", False),
     ),
-    "sentence_paragraph_count": lambda cfg, _llm: SentenceParagraphCountEvaluator(
-        mode=cfg.get("mode", "sentence"),
-        min=cv.opt_integer(cfg, "min"),
-        max=cv.opt_integer(cfg, "max"),
-    ),
+    "sentence_paragraph_count": _sentence_paragraph_count,
 
     # Generic LLM-judge (legacy, llm_judge.py) — registered so dataset mode
     # and contracts can reference them; previously only in EVALUATOR_REGISTRY.

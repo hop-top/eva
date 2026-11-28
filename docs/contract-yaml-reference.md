@@ -50,7 +50,7 @@ Each item in the `evaluators` list is a reference to a built-in or custom evalua
 | Property | Type | Required | Description |
 |---|---|---|---|
 | `name` | `string` | **Yes** | The name of the evaluator (e.g., `contains`, `regex`). |
-| `mode` | `string` | No | Scoring mode: `binary` (default), `threshold`, or `warn`. |
+| `mode` | `string` | No | Scoring mode: `binary` (default), `threshold`, or `warn`. Only the pass mode: `refusal` and `sentence_paragraph_count` keep their own setting under `refusal_mode` / `count_mode`. |
 | `min_score` | `float` | No | Minimum score required for `threshold` mode. Default: `1.0`. |
 
 *Note: Individual evaluators may require additional properties based on their type (e.g., `substring` for the `contains` evaluator).*

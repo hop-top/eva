@@ -171,7 +171,7 @@ GOOD = [
     ("json_schema_valid", {}),
     ("word_count", {"max": 10, "min": 1}),
     ("word_count", {"max": None}),
-    ("sentence_paragraph_count", {"mode": "paragraph", "min": 1, "max": 3}),
+    ("sentence_paragraph_count", {"count_mode": "paragraph", "min": 1, "max": 3}),
     ("code_block_runs", {"unsupported_action": "fail", "require_code_block": True}),
     ("tool_call_match", {"match": "ordered", "case_sensitive": False,
                          "normalize_whitespace": True}),

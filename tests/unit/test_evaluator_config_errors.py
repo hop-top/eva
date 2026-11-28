@@ -116,14 +116,3 @@ def test_errors_stay_value_errors():
     assert issubclass(EvaluatorConfigError, ValueError)
     assert issubclass(JudgeAdapterRequired, ValueError)
     assert not issubclass(JudgeAdapterRequired, EvaluatorConfigError)
-
-
-@pytest.mark.parametrize("name", ["refusal", "sentence_paragraph_count"])
-@pytest.mark.asyncio
-async def test_pass_mode_in_own_mode_evaluators_is_a_config_error(name):
-    # ``mode`` is the evaluator's own setting there; the pass mode ``binary``
-    # cannot be given in a dataset entry.
-    calls: list[str] = []
-    with pytest.raises(EvaluatorConfigError, match="binary"):
-        await _runner(calls).execute(_ds([{"name": name, "mode": "binary"}]))
-    assert calls == []

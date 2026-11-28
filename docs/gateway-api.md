@@ -93,6 +93,7 @@ X-Eva-Key: <key>
 | `target` | str | yes | — | Agent URL to forward to |
 | `body` | object | no | `{}` | Request body forwarded to agent |
 | `evaluators` | array | no | `[]` | Inline evaluator specs |
+| `evaluators[].mode` | str | no | `binary` | Pass mode only: `binary`, `threshold` or `warn`. An evaluator's own settings go in `config` (`refusal` takes `refusal_mode`, `sentence_paragraph_count` takes `count_mode`); a `mode` that is one of their values is answered with `422` naming the key |
 | `max_retries` | int | no | `0` | Retry attempts on violation |
 | `hint` | str | no | `null` | Injected as `_eva_hint` on retries |
 | `backoff_ms` | int | no | `0` | Sleep between retries (ms) |

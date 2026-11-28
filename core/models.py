@@ -22,6 +22,16 @@ class EvaluatorRef(BaseModel):
     mode: Literal["binary", "threshold", "warn"] = "binary"
     min_score: float = 1.0
 
+    @model_validator(mode="before")
+    @classmethod
+    def _own_mode_values(cls, data):
+        # ``mode`` is only the pass mode (see core.evaluators.own_mode).
+        if isinstance(data, dict):
+            from core.evaluators.own_mode import check_pass_mode
+
+            check_pass_mode(data.get("name"), data.get("mode"))
+        return data
+
     @model_validator(mode="after")
     def _default_pass_rule(self) -> "EvaluatorRef":
         # An evaluator may derive mode/min_score from its config (e.g.

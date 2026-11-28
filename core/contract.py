@@ -128,6 +128,12 @@ def load_contract(path: Path) -> Contract:
     try:
         contract = Contract.model_validate(raw)
     except ValidationError as e:
+        from core.evaluators.errors import EvaluatorConfigError
+
+        for err in e.errors():
+            cause = (err.get("ctx") or {}).get("error")
+            if isinstance(cause, EvaluatorConfigError):
+                raise ContractValidationError(str(cause)) from e
         raise ContractValidationError(str(e)) from e
     check_evaluator_configs(contract)
     return contract

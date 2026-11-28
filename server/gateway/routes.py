@@ -111,6 +111,15 @@ class EvaluatorSpec(BaseModel):
     min_score: float = 1.0
     config: dict = Field(default_factory=dict)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _own_mode_values(cls, data):
+        if isinstance(data, dict):
+            from core.evaluators.own_mode import check_pass_mode
+
+            check_pass_mode(data.get("name"), data.get("mode"))
+        return data
+
     @model_validator(mode="after")
     def _default_pass_rule(self) -> "EvaluatorSpec":
         # Same hook as core.models.EvaluatorRef: only unset mode/min_score.
