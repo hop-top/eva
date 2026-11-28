@@ -52,6 +52,8 @@ class ChatTarget(BaseModel):
     top_p: float | None = None
     timeout_s: float = 120.0
     system: str | None = None  # optional system prompt (eva addition)
+    # Stable identity for stored per-case results; default provider:model.
+    id: str | None = None
 
     @property
     def resolved_base_url(self) -> str:

@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 from sqlmodel import Field, Session, SQLModel, create_engine, select
-from core.adapters import StorageAdapter
+from core.adapters import CaseResultStore, StorageAdapter
 from core.models import (
     Annotation, Artifact, ContractVersion, DatasetVersion,
     EvaluatorResult, Invocation, Run, Result, Score, ToolCall, UsageRecord,
@@ -164,7 +164,23 @@ class ContractVersionRecord(SQLModel, table=True):
     created_at: datetime
 
 
-class SqliteStorage(StorageAdapter):
+class CaseResultRecord(SQLModel, table=True):
+    __tablename__ = "caseresultrecord"
+
+    dataset: str = Field(primary_key=True)
+    target_id: str = Field(primary_key=True)
+    case_id: str = Field(primary_key=True)
+    case_hash: str = Field(primary_key=True)
+    passed: bool
+    score: Optional[float] = None
+    evaluators_json: str
+    run_id: str
+    at: str
+    provider: Optional[str] = None
+    model: Optional[str] = None
+
+
+class SqliteStorage(StorageAdapter, CaseResultStore):
     def __init__(self, db_url: str = "sqlite:///.eva/state.db"):
         if db_url.startswith("sqlite:///"):
             path = Path(db_url.replace("sqlite:///", ""))
@@ -510,6 +526,65 @@ class SqliteStorage(StorageAdapter):
             session.delete(record)
             session.commit()
         return True
+
+    # ------------------------------------------------------------------ #
+    # Per-case results (CaseResultStore)                                   #
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _case_row(r: Any) -> CaseResultRecord:
+        return CaseResultRecord(
+            dataset=r.dataset, target_id=r.target_id, case_id=r.case,
+            case_hash=r.case_hash, passed=r.passed, score=r.score,
+            evaluators_json=json.dumps([e.model_dump() for e in r.evaluators]),
+            run_id=r.run_id, at=r.at, provider=r.provider, model=r.model,
+        )
+
+    def put_case_results(self, records: list[Any]) -> int:
+        n = 0
+        with Session(self.engine) as session:
+            for r in records:
+                pk = (r.dataset, r.target_id, r.case, r.case_hash)
+                if session.get(CaseResultRecord, pk) is None:
+                    session.add(self._case_row(r))
+                    session.flush()
+                    n += 1
+            session.commit()
+        return n
+
+    def replace_case_result(self, record: Any) -> None:
+        with Session(self.engine) as session:
+            session.merge(self._case_row(record))
+            session.commit()
+
+    def get_case_results(
+        self,
+        dataset: str,
+        target_id: Optional[str] = None,
+        case_ids: Optional[list[str]] = None,
+    ) -> list[Any]:
+        from core.case_results import CaseResult
+
+        stmt = select(CaseResultRecord).where(CaseResultRecord.dataset == dataset)
+        if target_id is not None:
+            stmt = stmt.where(CaseResultRecord.target_id == target_id)
+        if case_ids is not None:
+            stmt = stmt.where(CaseResultRecord.case_id.in_(case_ids))  # type: ignore[attr-defined]
+        stmt = stmt.order_by(
+            CaseResultRecord.target_id, CaseResultRecord.case_id,
+            CaseResultRecord.case_hash, CaseResultRecord.at, CaseResultRecord.run_id,
+        )
+        with Session(self.engine) as session:
+            rows = session.exec(stmt).all()
+        return [
+            CaseResult(
+                dataset=r.dataset, target_id=r.target_id, case=r.case_id,
+                case_hash=r.case_hash, passed=r.passed, score=r.score,
+                evaluators=json.loads(r.evaluators_json),
+                run_id=r.run_id, at=r.at, provider=r.provider, model=r.model,
+            )
+            for r in rows
+        ]
 
     def _record_to_run(self, record: RunRecord) -> Run:
         results = [Result.model_validate(r) for r in json.loads(record.results_json)]
