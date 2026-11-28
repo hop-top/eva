@@ -22,6 +22,23 @@ class EvaluatorRef(BaseModel):
     mode: Literal["binary", "threshold", "warn"] = "binary"
     min_score: float = 1.0
 
+    @model_validator(mode="after")
+    def _default_pass_rule(self) -> "EvaluatorRef":
+        # An evaluator may derive mode/min_score from its config (e.g.
+        # key_facts' threshold). Only what the user left unset is filled in.
+        from core.evaluators.pass_rules import resolve_pass_rule
+
+        sent = self.model_fields_set
+        resolved = resolve_pass_rule(
+            self.name,
+            self.__pydantic_extra__ or {},
+            self.mode if "mode" in sent else None,
+            self.min_score if "min_score" in sent else None,
+        )
+        if resolved is not None and resolved != (self.mode, self.min_score):
+            self.mode, self.min_score = resolved
+        return self
+
 
 class RetryPolicy(BaseModel):
     max_retries: int = 2

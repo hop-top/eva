@@ -113,6 +113,7 @@ class Runner:
         plugin_cfgs: list[dict] = []
         run_skipped: list[str] = []
         factories: dict[str, Any] = {}
+        from core.evaluators.pass_rules import with_default_pass_rule
         if self.use_builtins:
             from core.evaluators.builtin import BUILTIN_EVALUATOR_FACTORIES
             factories = BUILTIN_EVALUATOR_FACTORIES
@@ -123,6 +124,7 @@ class Runner:
             if factory is None:
                 plugin_cfgs.append(cfg_dict)
                 continue
+            cfg_dict = with_default_pass_rule(cfg_dict)
             try:
                 instance = factory(cfg_dict, self.llm_adapter)
             except ValueError as e:

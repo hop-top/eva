@@ -301,17 +301,26 @@ whitespace-normalised by default. Reasoning (`<think>...</think>`) is ignored.
 **Pass rule:** unless you set `mode` or `min_score` on the evaluator, `key_facts` runs as
 `mode: threshold` with `min_score = threshold`. Explicit `mode`/`min_score` win; one that
 contradicts an explicit `threshold` (`mode: binary` with `threshold: 0.75`, or a different
-`min_score`) is a configuration error. Applies to dataset runs. In contract mode the contract's
-own `mode`/`min_score` decide pass (default `binary`: every fact), so set
-`mode: threshold` and `min_score` there.
+`min_score`) is a configuration error. The same rule applies to dataset runs,
+`eva run --contract` and the gateway (`/v1/contract/invoke`, `/v1/contract/evaluate`,
+`/v1/proxy`). A contradiction makes `eva run --contract` exit `2` with the message, makes
+`/v1/proxy` answer `422`, and makes the gateway skip that contract at load with a warning.
 
 **Dataset-case evaluator:** reads `metadata.key_facts` from the case (shape in
 [dataset-reference.md](dataset-reference.md#key-facts)). A case with neither case facts nor
 `required`/`forbidden` config is not applicable: no result is recorded for it.
 
-**Contract mode** (`eva run --contract`): there is no case, so the evaluator uses the
-`required`/`forbidden` config; with neither it scores `0.0` (`no facts`), like `code_tests` and
-`exact_match`.
+**Contract mode** (`eva run --contract`) and the gateway: there is no case, so the evaluator
+uses the `required`/`forbidden` config; with neither it scores `0.0` (`no facts`), like
+`code_tests` and `exact_match`.
+
+```yaml
+# contract: pass with 3 of 4 facts
+evaluators:
+  - name: key_facts
+    required: ["Paris", ["1889", "eighteen eighty-nine"], "330 m", "Gustave Eiffel"]
+    threshold: 0.75
+```
 
 ```yaml
 evaluators:
