@@ -283,7 +283,7 @@ Per-case fact coverage, no judge model. Each case lists the facts a good respons
 (each fact = a list of accepted variants) and, optionally, strings that must not appear.
 Built for summaries and Q&A over a fixed source.
 
-Score = facts found / total facts. A fact is found when **any** of its variants occurs in the
+Score = facts found / total facts (always the true coverage). A fact is found when **any** of its variants occurs in the
 response (substring match). Any forbidden string present forces `0.0`. The reason names every
 missing fact (variants joined by `|`) and any forbidden hit. Matching is case-insensitive and
 whitespace-normalised by default. Reasoning (`<think>...</think>`) is ignored.
@@ -291,12 +291,19 @@ whitespace-normalised by default. Reasoning (`<think>...</think>`) is ignored.
 ### Configuration Properties:
 | Property | Type | Required | Description |
 |---|---|---|---|
-| `threshold` | `number` | No | Coverage in `(0, 1]` that passes. Default `1.0` (every fact). At or above it the score is `1.0`; below it, the raw coverage. A forbidden hit is `0.0` regardless. |
+| `threshold` | `number` | No | Coverage in `(0, 1]` that passes. Default `1.0` (every fact). Sets the pass rule (see below); never changes the score. |
 | `case_sensitive` | `boolean` | No | Default `false`. |
 | `normalize_whitespace` | `boolean` | No | Default `true`: runs of whitespace (newlines, tabs) count as one space. |
 | `field` | `string` | No | Top-level field of a JSON object response to search instead of the whole response. Same rules as `contains`. |
 | `required` | `list` | No | Fallback facts when a case carries none (same shape as the case). |
 | `forbidden` | `list` | No | Fallback forbidden strings when a case carries none. |
+
+**Pass rule:** unless you set `mode` or `min_score` on the evaluator, `key_facts` runs as
+`mode: threshold` with `min_score = threshold`. Explicit `mode`/`min_score` win; one that
+contradicts an explicit `threshold` (`mode: binary` with `threshold: 0.75`, or a different
+`min_score`) is a configuration error. Applies to dataset runs. In contract mode the contract's
+own `mode`/`min_score` decide pass (default `binary`: every fact), so set
+`mode: threshold` and `min_score` there.
 
 **Dataset-case evaluator:** reads `metadata.key_facts` from the case (shape in
 [dataset-reference.md](dataset-reference.md#key-facts)). A case with neither case facts nor
@@ -309,7 +316,6 @@ whitespace-normalised by default. Reasoning (`<think>...</think>`) is ignored.
 ```yaml
 evaluators:
   - name: key_facts
-    mode: binary
     threshold: 0.75          # pass with 3 of 4 facts
 tests:
   - id: eiffel-summary
@@ -325,8 +331,8 @@ tests:
 ```
 
 A response "The Eiffel Tower in Paris opened in 1889 and stands 330 metres tall." covers 3 of 4
-facts: score `1.0` at `threshold: 0.75`, `0.75` at the default threshold (reason:
-`missing 1/4 facts: 'Gustave Eiffel' | 'Eiffel company'`).
+facts: score `0.75` either way (reason: `missing 1/4 facts: 'Gustave Eiffel' | 'Eiffel company'`);
+it passes at `threshold: 0.75` and fails at the default threshold.
 
 ---
 

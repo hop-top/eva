@@ -38,7 +38,7 @@ from core.evaluators.forbidden_phrases import ForbiddenPhrasesEvaluator
 from core.evaluators.geval import GEvalEvaluator
 from core.evaluators.ifeval_check import IfevalCheckEvaluator
 from core.evaluators.json_path import JsonPathEvaluator
-from core.evaluators.key_facts import KeyFactsEvaluator
+from core.evaluators.key_facts import make_key_facts
 from core.evaluators.json_schema_valid import JsonSchemaEvaluator
 from core.evaluators.language import LanguageEvaluator
 from core.evaluators.llm_judge import (
@@ -189,14 +189,7 @@ BUILTIN_EVALUATOR_FACTORIES: dict[str, EvaluatorFactory] = {
         instruction_id_list=cfg.get("instruction_id_list"),
         kwargs=cfg.get("kwargs"),
     ),
-    "key_facts": lambda cfg, _llm: KeyFactsEvaluator(
-        required=cfg.get("required"),
-        forbidden=cfg.get("forbidden"),
-        threshold=cfg.get("threshold", 1.0),
-        case_sensitive=cfg.get("case_sensitive", False),
-        normalize_whitespace=cfg.get("normalize_whitespace", True),
-        field=cfg.get("field"),
-    ),
+    "key_facts": make_key_facts,
     "json_path": lambda cfg, _llm: JsonPathEvaluator(
         path=cfg.get("path", ""),
         comparator=cfg.get("comparator", "eq"),

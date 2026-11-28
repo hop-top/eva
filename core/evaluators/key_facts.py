@@ -12,9 +12,10 @@ Facts live on the case under ``metadata.key_facts``::
 
 Score = facts found / total facts. A fact is found when ANY of its variants
 occurs as a substring of the response. A forbidden string present forces 0.0.
-``threshold`` (default 1.0 = every fact) is the coverage that passes: at or
-above it the score is 1.0, below it the raw coverage. Matching is
-case-insensitive and whitespace-normalised by default.
+The score is always the true coverage. ``threshold`` (default 1.0 = every
+fact) is the coverage that passes: the builtin factory turns it into
+``mode: threshold`` / ``min_score`` for dataset runs (see ``make_key_facts``).
+Matching is case-insensitive and whitespace-normalised by default.
 
 Without a case (contract mode) facts come from the ``required`` / ``forbidden``
 config instead; with neither, ``run`` scores 0.0.
@@ -32,6 +33,11 @@ _NAME = "key_facts"
 
 class FactsError(ValueError):
     pass
+
+
+class KeyFactsConfigError(Exception):
+    """Contradictory pass settings. Deliberately not a ``ValueError``: runners
+    treat those as "evaluator unavailable" and skip silently."""
 
 
 def _parse_required(raw: Any) -> list[list[str]]:
@@ -132,12 +138,9 @@ class KeyFactsEvaluator:
             problems.append("forbidden present: " + ", ".join(repr(h) for h in hits))
         if hits:
             return Score(value=0.0, reason="; ".join(problems), metadata=meta)
-        if coverage >= self.threshold:
-            reason = "; ".join(problems) or None
-            if problems:
-                reason += f" (coverage {found}/{len(required)} meets threshold {self.threshold:g})"
-            return Score(value=1.0, reason=reason, metadata=meta)
-        return Score(value=coverage, reason="; ".join(problems), metadata=meta)
+        return Score(
+            value=coverage, reason="; ".join(problems) or None, metadata=meta
+        )
 
     def _facts_for(self, case: dict) -> tuple[list[list[str]], list[str]]:
         meta = case.get("metadata") or {}
@@ -150,3 +153,40 @@ class KeyFactsEvaluator:
             if required or forbidden:
                 return required, forbidden
         return self.required, self.forbidden
+
+
+def make_key_facts(cfg: dict, _llm: Any = None) -> KeyFactsEvaluator:
+    """Factory: build the evaluator and derive its pass rule from ``threshold``.
+
+    Unless ``mode``/``min_score`` were set explicitly on ``cfg``, writes
+    ``mode: threshold`` and ``min_score: <threshold>`` back into ``cfg`` (the
+    dict dataset runs read the pass rule from). Explicit settings win; one
+    that contradicts an explicit ``threshold`` raises ``KeyFactsConfigError``.
+    """
+    threshold_set = "threshold" in cfg
+    threshold = cfg.get("threshold", 1.0)
+    ev = KeyFactsEvaluator(
+        required=cfg.get("required"),
+        forbidden=cfg.get("forbidden"),
+        threshold=threshold,
+        case_sensitive=cfg.get("case_sensitive", False),
+        normalize_whitespace=cfg.get("normalize_whitespace", True),
+        field=cfg.get("field"),
+    )
+    mode = cfg.get("mode")
+    min_set = "min_score" in cfg
+
+    def conflict(why: str) -> KeyFactsConfigError:
+        return KeyFactsConfigError(f"{_NAME}: threshold {threshold:g} conflicts with {why}")
+
+    if min_set and threshold_set and abs(cfg["min_score"] - threshold) > 1e-9:
+        raise conflict(f"min_score {cfg['min_score']:g}; set one of them")
+    if mode == "binary" and threshold_set and threshold != 1.0:
+        raise conflict("mode: binary (needs every fact); use mode: threshold or drop mode")
+    if mode == "warn":
+        return ev
+    if mode == "binary":
+        return ev
+    cfg["mode"] = "threshold"
+    cfg.setdefault("min_score", threshold)
+    return ev
