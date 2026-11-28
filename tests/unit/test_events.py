@@ -91,3 +91,24 @@ def test_event_sink_instances_are_isolated():
     sink_a.emit_tool_call("a_only", {})
     assert len(sink_a.events) == 1
     assert sink_b.events == []
+
+
+# ---------------------------------------------------------------------------
+# EventSink — emit/drain details
+# ---------------------------------------------------------------------------
+
+
+def test_emit_tool_call_returns_the_stored_event():
+    sink = EventSink()
+    evt = sink.emit_tool_call("search", {"q": "x"}, error="boom", step_index=3)
+    assert isinstance(evt, ToolCallEvent)
+    assert sink.events == [evt]
+    assert (evt.error, evt.step_index) == ("boom", 3)
+
+
+def test_drain_on_empty_sink_and_second_drain_return_empty():
+    sink = EventSink()
+    assert sink.drain() == []
+    sink.emit_tool_call("t", {})
+    assert len(sink.drain()) == 1
+    assert sink.drain() == []
