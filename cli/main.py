@@ -264,7 +264,9 @@ def run(
     import httpx
     from core.config import find_and_load_config
     from core.dataset import load_dataset
+    from core.evaluators.errors import EvaluatorConfigError
     from core.llm import build_llm_adapter
+    from rich.markup import escape
     from core.loader import build_manager
     from core.runner import Runner
     from core.storage import SqliteStorage
@@ -351,24 +353,28 @@ def run(
         storage=storage,
     )
 
-    if fmt == "json":
-        eva_run = asyncio.run(runner.execute(ds))
-        if since_date is not None:
-            from core.categories import since_score
-
-            eva_run.since = since_score(eva_run.cases, since_date)
-        print(eva_run.model_dump_json())
-    else:
-        if no_tui:
+    try:
+        if fmt == "json":
             eva_run = asyncio.run(runner.execute(ds))
-            _print_plain(eva_run)
-        else:
-            eva_run = _run_with_tui(runner, ds)
-        from core.categories import format_figures
-        from rich.markup import escape
+            if since_date is not None:
+                from core.categories import since_score
 
-        for line in format_figures(eva_run.cases, since_date):
-            console.print(escape(line))
+                eva_run.since = since_score(eva_run.cases, since_date)
+            print(eva_run.model_dump_json())
+        else:
+            if no_tui:
+                eva_run = asyncio.run(runner.execute(ds))
+                _print_plain(eva_run)
+            else:
+                eva_run = _run_with_tui(runner, ds)
+            from core.categories import format_figures
+
+            for line in format_figures(eva_run.cases, since_date):
+                console.print(escape(line))
+    except EvaluatorConfigError as e:
+        # Raised while evaluators are resolved, before any target call.
+        console.print(f"[red]Error:[/red] {escape(str(e))}")
+        raise typer.Exit(2)
 
     if getattr(eva_run, "skipped", None):
         from rich.console import Console as _Console

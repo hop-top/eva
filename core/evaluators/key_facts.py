@@ -26,6 +26,7 @@ from typing import Any
 
 from core.chat_targets import split_reasoning
 from core.evaluators._field import extract_text_field
+from core.evaluators.errors import EvaluatorConfigError
 from core.models import Score
 
 _NAME = "key_facts"
@@ -35,13 +36,16 @@ class FactsError(ValueError):
     pass
 
 
-class KeyFactsConfigError(ValueError):
+class KeyFactsConfigError(EvaluatorConfigError):
     """Contradictory pass settings (``threshold`` vs ``mode``/``min_score``).
 
-    A ``ValueError`` so pydantic reports it as a validation error (contract
-    load, ``/v1/proxy``); the pass-rule hook runs outside the factory ``try``
-    in runners, so it is never mistaken for "evaluator unavailable".
+    An ``EvaluatorConfigError`` (so a ``ValueError``): pydantic reports it as a
+    validation error (contract load, ``/v1/proxy``) and a dataset run fails on
+    it like on any other invalid config.
     """
+
+    def __init__(self, message: str):
+        super().__init__(message, evaluator=_NAME)
 
 
 def _parse_required(raw: Any) -> list[list[str]]:

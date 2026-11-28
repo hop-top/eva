@@ -100,6 +100,9 @@ eva run --contract contracts/my.yaml --input artifacts/response.txt \
   (e.g. mixing `--contract` with `--dataset`, `--prompt` together with
   `--prompt-file`, `--prompt`/`--prompt-file` without `--contract`/`--input`, or
   `--prompt-file -` together with `--input -`).
+- `2` also, in dataset mode: an evaluator's configuration is invalid; the message
+  names the evaluator and the problem and no target call is made (see
+  [evaluators-reference.md](evaluators-reference.md#invalid-evaluator-configuration)).
 - `3`: Dataset mode only: the dataset is append-only and its integrity check
   failed (see [`eva dataset`](#eva-dataset)); nothing ran.
 

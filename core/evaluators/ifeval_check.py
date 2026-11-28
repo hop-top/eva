@@ -83,7 +83,7 @@ class IfevalCheckEvaluator:
         kwargs: list[dict | None] | None = None,
     ):
         if pass_on not in ("strict", "loose"):
-            raise ValueError("pass_on must be 'strict' or 'loose'")
+            raise ValueError(f"pass_on must be 'strict' or 'loose'; got {pass_on!r}")
         self.pass_on = pass_on
         self.instruction_id_list = instruction_id_list
         self.kwargs = kwargs
