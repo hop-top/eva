@@ -554,6 +554,12 @@ def serve(
         help="Serve without API-key authentication (required when no key store "
         "is configured via EVA_REDIS_URL)",
     ),
+    db: str | None = typer.Option(
+        None,
+        "--db",
+        help="SQLite file recording gateway invocations "
+        "(default: .eva/state.db in the current directory).",
+    ),
 ) -> None:
     """Start the Eva gateway server."""
     import os
@@ -571,7 +577,14 @@ def serve(
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(EXIT_BAD_INPUT)
 
-    from server.app import SERVE_CONTRACTS_DIR_ENV, create_app, create_serve_app
+    from server.app import (
+        SERVE_CONTRACTS_DIR_ENV,
+        DEFAULT_DB_PATH,
+        SERVE_DB_ENV,
+        build_serve_storage,
+        create_app,
+        create_serve_app,
+    )
     from server.auth import NO_AUTH_ENV, AuthNotConfiguredError, serve_auth_mode
     from server.contracts.registry import ContractRegistry
 
@@ -603,9 +616,16 @@ def serve(
             f"Warning: contracts directory '{contracts_dir}' not found — starting with empty registry"
         )
 
+    # Opened here in every mode, before any worker starts: creates the db and
+    # its tables once, so workers never race on schema creation.
+    storage = build_serve_storage(db)
+    typer.echo(f"Recording gateway invocations in {Path(db or DEFAULT_DB_PATH).resolve()}")
+
     if reload or workers > 1:
         # uvicorn requires an import string here; the app is built per process.
         os.environ[SERVE_CONTRACTS_DIR_ENV] = str(contracts_dir.resolve())
+        os.environ[SERVE_DB_ENV] = str(Path(db or DEFAULT_DB_PATH).resolve())
+        storage.engine.dispose()
         uvicorn.run(
             "server.app:create_serve_app",
             factory=True,
@@ -617,7 +637,7 @@ def serve(
         return
 
     uvicorn.run(
-        create_app(registry=registry, judge_adapter=judge_adapter),
+        create_app(registry=registry, judge_adapter=judge_adapter, storage=storage),
         host=host,
         port=port,
     )
