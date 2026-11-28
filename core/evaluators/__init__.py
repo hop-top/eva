@@ -18,6 +18,7 @@ from core.evaluators.forbidden_phrases import ForbiddenPhrasesEvaluator
 from core.evaluators.geval import GEvalEvaluator
 from core.evaluators.ifeval_check import IfevalCheckEvaluator
 from core.evaluators.json_path import JsonPathEvaluator
+from core.evaluators.key_facts import KeyFactsEvaluator
 from core.evaluators.json_schema_valid import JsonSchemaEvaluator
 from core.evaluators.language import LanguageEvaluator
 from core.evaluators.last_paragraph_regex import LastParagraphRegexEvaluator
@@ -116,6 +117,7 @@ EVALUATOR_REGISTRY = {
     "ifeval_check": IfevalCheckEvaluator,
     "final_answer": FinalAnswerEvaluator,
     "json_path": JsonPathEvaluator,
+    "key_facts": KeyFactsEvaluator,
     "markdown_structure": MarkdownStructureEvaluator,
     "sentence_paragraph_count": SentenceParagraphCountEvaluator,
 
@@ -171,6 +173,7 @@ __all__ = [
     "FinalAnswerEvaluator",
     "IfevalCheckEvaluator",
     "JsonPathEvaluator",
+    "KeyFactsEvaluator",
     "MarkdownStructureEvaluator",
     "SentenceParagraphCountEvaluator",
     "ProseAssertionEvaluator",
