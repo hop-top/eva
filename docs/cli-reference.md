@@ -303,7 +303,7 @@ JSON output: `{"dir": "...", "dry_run": false, "ok": true, "resources": [{"id": 
 
 Integrity commands for [append-only datasets](dataset-reference.md#append-only-datasets)
 (`append_only: true`). `PATH` is a YAML dataset or a directory of JSONL
-files. All three accept `--format text|json` (default `text`; JSON goes to
+files. All four accept `--format text|json` (default `text`; JSON goes to
 stdout, problems in text mode to stderr).
 
 | Command | What it does |
@@ -311,6 +311,7 @@ stdout, problems in text mode to stderr).
 | `eva dataset check PATH` | Fails if a recorded case was edited or removed, an id is used twice, a case is not in the ledger, provenance is missing/invalid or a `supersedes` is bad. Writes nothing. |
 | `eva dataset lock PATH [--dry-run]` | Records new cases in the ledger. Refuses (writes nothing) on any problem other than the cases being unrecorded. |
 | `eva dataset add PATH --from CASES.jsonl [--file NAME.jsonl] [--dry-run]` | Directory datasets only. Appends the cases to `NAME.jsonl` (created if new; optional when the directory holds exactly one `.jsonl`) and records them. A case whose id and content hash are already present is skipped; the same id with different content is refused. Nothing is written if any case is refused. `--from -` reads stdin. |
+| `eva dataset import SOURCE --into DIR [--n N] [--seed S] [--file NAME.jsonl] [--dry-run]` | Samples cases from a public benchmark set and appends them to an append-only directory dataset; see [dataset-importers.md](dataset-importers.md). |
 
 ```bash
 eva dataset check pool/ --format json
@@ -320,14 +321,17 @@ eva dataset add pool/ --from new-cases.jsonl --file reasoning.jsonl --dry-run
 
 JSON shapes: `check` -> `ok, cases, scored, superseded, problems`;
 `lock` -> `ok, dry_run, recorded, problems`; `add` -> `ok, dry_run, added,
-skipped, problems`. Each problem is `{code, id, message}` with `code` one of
+skipped, problems`; `import` -> `ok, dry_run, source, seed, requested,
+sampled, revision, added, skipped, problems`. Each problem is `{code, id, message}` with `code` one of
 `edited`, `removed`, `collision`, `unrecorded`, `provenance`, `supersedes`,
 `conflict`, `invalid`.
 
 ### Exit Codes:
 - `0`: Check passed / cases recorded or added.
+- `1`: `import` only: upstream unreachable or unusable; nothing was written.
 - `2`: Bad input: dataset not found or unreadable, not append-only,
-  invalid `--format`, unusable `--file`.
+  invalid `--format`, unusable `--file`; for `import` also an unknown or
+  refused source.
 - `3`: Integrity check failed; nothing was written.
 
 `eva run --dataset` on an append-only dataset runs the same check first

@@ -102,6 +102,9 @@ missing or invalid provenance (`provenance`) and a bad `supersedes`
 without running anything. See
 [cli-reference.md](cli-reference.md#eva-dataset).
 
+Public benchmark sets can be imported with seeded, append-only sampling:
+see [dataset-importers.md](dataset-importers.md).
+
 ## Key facts
 
 The `key_facts` evaluator reads `metadata.key_facts` from each case:
