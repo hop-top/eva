@@ -18,6 +18,11 @@ Flow: take the last fenced block for the language (tag match first, then
 last untagged block), append the case's tests, run. Exit 0 = 1.0, else
 0.0 with the failure reason (timeout / exit code + stderr tail).
 
+stdin/stdout mode: a case with ``stdio`` (list of ``{stdin, expected_stdout}``)
+runs the extracted program once per pair (fresh temp dir each, ``timeout`` per
+run) and compares stdout after trailing-whitespace normalisation. Score is
+all-or-nothing unless ``partial`` is set; the reason carries ``passed N/M``.
+
 Per-case test code comes from the test case's ``tests`` field (string or
 list of strings, joined by newlines); the evaluator's ``test_code`` config
 is appended after it as a shared harness. A case with neither is not
@@ -43,6 +48,7 @@ from core.models import Score
 
 _FENCE = re.compile(r"```[ \t]*([^\s`]*)[^\n`]*\n(.*?)```", re.DOTALL)
 _OUTPUT_LIMIT = 4000
+_MAX_LISTED_FAILURES = 3
 
 
 @dataclass(frozen=True)
@@ -84,6 +90,16 @@ def _tests_text(tests: str | list[str] | None) -> str:
     return "\n".join(tests)
 
 
+def _normalise(s: str) -> str:
+    """Trailing whitespace on each line and at the end is not significant."""
+    lines = (s or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    return "\n".join(line.rstrip() for line in lines).rstrip()
+
+
+def _clip(s: str, n: int) -> str:
+    return s if len(s) <= n else s[:n] + "..."
+
+
 def _tail(s: str, n: int = 500) -> str:
     s = (s or "").strip()
     return s[-n:]
@@ -99,6 +115,7 @@ class CodeTestsEvaluator:
         test_code: str = "",
         memory_mb: int = 512,
         max_file_mb: int = 16,
+        partial: bool = False,
     ):
         if timeout is None:
             raise ValueError("timeout=None is not permitted — set a second limit")
@@ -112,6 +129,7 @@ class CodeTestsEvaluator:
         self.test_code = test_code
         self.memory_mb = memory_mb
         self.max_file_mb = max_file_mb
+        self.partial = partial
 
     def run(self, response: str) -> Score:
         # No case context: only the shared ``test_code`` config can supply tests.
@@ -121,6 +139,14 @@ class CodeTestsEvaluator:
 
     def run_case(self, response: str, case: dict) -> Score | None:
         """Score one case; ``None`` = not applicable (case carries no tests)."""
+        stdio = case.get("stdio")
+        if stdio:
+            if _tests_text(case.get("tests")).strip():
+                return Score(
+                    value=0.0,
+                    reason="case has both tests and stdio; give one",
+                )
+            return self._run_stdio(response, stdio)
         tests = "\n".join(
             t for t in (_tests_text(case.get("tests")), self.test_code) if t
         )
@@ -163,6 +189,62 @@ class CodeTestsEvaluator:
         if r.contained and "Operation not permitted" in (r.stderr or ""):
             reason += " (blocked by sandbox)"
         return reason
+
+    def _run_stdio(self, response: str, stdio: list) -> Score:
+        pairs: list[tuple[str, str]] = []
+        for i, p in enumerate(stdio, 1):
+            if not isinstance(p, dict) or not isinstance(p.get("expected_stdout"), str):
+                return Score(
+                    value=0.0, reason=f"stdio pair {i}: expected_stdout (string) required"
+                )
+            stdin = p.get("stdin", "")
+            if not isinstance(stdin, str):
+                return Score(value=0.0, reason=f"stdio pair {i}: stdin must be a string")
+            pairs.append((stdin, p["expected_stdout"]))
+        answer, _ = split_reasoning(response)
+        code = extract_last_block(answer, self.language)
+        if code is None:
+            return Score(value=0.0, reason=f"no {self.language.name} code block found")
+        passed = 0
+        failures: list[str] = []
+        for i, (stdin, expected) in enumerate(pairs, 1):
+            outcome = self._run_pair(code, stdin, expected)
+            if outcome is None:
+                passed += 1
+            else:
+                failures.append(f"test {i}: {outcome}")
+        total = len(pairs)
+        reason = f"passed {passed}/{total}"
+        if failures:
+            reason += "; " + "; ".join(failures[:_MAX_LISTED_FAILURES])
+            if len(failures) > _MAX_LISTED_FAILURES:
+                reason += f"; +{len(failures) - _MAX_LISTED_FAILURES} more"
+        if passed == total:
+            value = 1.0
+        else:
+            value = passed / total if self.partial else 0.0
+        return Score(value=value, reason=reason)
+
+    def _run_pair(self, code: str, stdin: str, expected: str) -> str | None:
+        """``None`` = pass; else a short failure description."""
+        workdir = tempfile.mkdtemp(prefix="eva-code-")
+        try:
+            with open(os.path.join(workdir, self.language.filename), "w") as f:
+                f.write(code + "\n")
+            r = self._run(workdir, stdin_data=stdin)
+        finally:
+            shutil.rmtree(workdir, ignore_errors=True)
+        if r.killed is not None or r.returncode != 0:
+            msg = self._failure(r)
+            if r.killed is None and msg.startswith("exit code"):
+                msg = "runtime error (" + msg[0].lower() + msg[1:] + ")"
+            return _clip(msg, 300)
+        if _normalise(r.stdout) == _normalise(expected):
+            return None
+        return (
+            f"wrong output (expected {_clip(_normalise(expected), 80)!r}, "
+            f"got {_clip(_normalise(r.stdout), 80)!r})"
+        )
 
     def _execute(self, program: str) -> Score:
         workdir = tempfile.mkdtemp(prefix="eva-code-")

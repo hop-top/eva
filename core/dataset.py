@@ -25,6 +25,9 @@ class EvaTestCase(BaseModel):
     # ``{"type": "function", "function": {"name": ...}}`` mapping).
     tools: list[dict] | None = None
     tool_choice: str | dict | None = None
+    # stdin/stdout mode for ``code_tests``: a list of
+    # ``{"stdin": str, "expected_stdout": str}``; the program runs once per pair.
+    stdio: list[dict] | None = None
     metadata: dict = {}
 
     @model_validator(mode="after")
