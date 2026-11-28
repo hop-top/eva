@@ -333,6 +333,52 @@ skipped, problems`. Each problem is `{code, id, message}` with `code` one of
 `eva run --dataset` on an append-only dataset runs the same check first
 and exits `3` (problems on stderr) without calling the target.
 
+## `eva skill show`
+
+Print the agent skill bundled with this eva version to stdout. Read-only; always
+serves the bundled copy, never an installed one.
+
+### Arguments:
+| Argument | Description |
+|---|---|
+| `reference` | Optional. Name of a reference file, without `.md` (`rest-api`, `contract-yaml`). Omit to print `SKILL.md`. |
+
+### Usage:
+```bash
+eva skill show
+eva skill show rest-api
+```
+
+### Exit Codes:
+- `0`: Printed.
+- `2`: Unknown reference name; the message lists the valid names.
+
+---
+
+## `eva skill install`
+
+Copy the bundled skill into a directory and write `.skill-install.json`
+(`{"tool", "version", "files": {path: sha256}}`). Nothing is installed unless
+you run this.
+
+| Flag | Description |
+|---|---|
+| `--dir` | Optional. Target directory. Default: `~/.claude/skills/eva-cli`. |
+| `--dry-run` | Optional. Print what would be written, replaced or removed; write nothing. |
+| `--force` | Optional. Overwrite a modified or foreign copy. Files eva did not install are kept. |
+
+- Target missing or empty: files are written.
+- Target with a manifest whose files all still match their hashes: files are
+  replaced, and manifest-listed files that are no longer bundled are removed.
+- Target without a manifest, with a modified or missing file, or with files the
+  manifest does not list: refused (exit `1`, offending files named) unless `--force`.
+
+### Usage:
+```bash
+eva skill install
+eva skill install --dir ./skills/eva-cli --dry-run
+```
+
 ---
 
 ## Global Configuration
