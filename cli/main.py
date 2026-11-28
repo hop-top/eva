@@ -277,6 +277,14 @@ def run(
     except (ValueError, FileNotFoundError) as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(2)
+    if ds.append_only:
+        from core.append_only import check as _check_append_only
+
+        _res = _check_append_only(dataset)
+        if not _res.ok:
+            for _p in _res.problems:
+                typer.echo(f"problem: {_p.message}", err=True)
+            raise typer.Exit(3)
     pm = build_manager(plugin_file=Path("plugins.py"))
     # Judge adapter: EVA_JUDGE_MODEL env / eva.yaml judge.model. None is fine —
     # judge-based builtin refs then skip with a reason (surfaced below).
@@ -360,7 +368,7 @@ def _run_with_tui(runner, ds):
     from rich.markup import escape
     from rich.table import Table
 
-    total_tests = len(ds.tests)
+    total_tests = len(ds.scored_tests())
     progress = Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -653,6 +661,10 @@ app.add_typer(invocations_app, name="invocations")
 app.add_typer(compare_app, name="compare")
 app.add_typer(failures_app, name="failures")
 app.add_typer(usage_app, name="usage")
+
+from cli.dataset_cmd import dataset_app
+
+app.add_typer(dataset_app, name="dataset")
 
 drift_app = typer.Typer(help="Drift detection commands.")
 app.add_typer(drift_app, name="drift")

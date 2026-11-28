@@ -88,6 +88,8 @@ eva run --contract contracts/my.yaml --input artifacts/response.txt \
   (e.g. mixing `--contract` with `--dataset`, `--prompt` together with
   `--prompt-file`, `--prompt`/`--prompt-file` without `--contract`/`--input`, or
   `--prompt-file -` together with `--input -`).
+- `3`: Dataset mode only: the dataset is append-only and its integrity check
+  failed (see [`eva dataset`](#eva-dataset)); nothing ran.
 
 Judge evaluators run when a judge is configured and a prompt is given; see
 [llm-evaluators.md](llm-evaluators.md#judge-evaluators-in-contract-mode). Otherwise
@@ -148,6 +150,40 @@ JSON output: `{"dir": "...", "dry_run": false, "ok": true, "resources": [{"id": 
 - `1`: A download failed.
 - `2`: Invalid flag value (`--format`).
 - `3`: The `ifeval` extra (nltk) is not installed.
+
+## `eva dataset`
+
+Integrity commands for [append-only datasets](dataset-reference.md#append-only-datasets)
+(`append_only: true`). `PATH` is a YAML dataset or a directory of JSONL
+files. All three accept `--format text|json` (default `text`; JSON goes to
+stdout, problems in text mode to stderr).
+
+| Command | What it does |
+|---|---|
+| `eva dataset check PATH` | Fails if a recorded case was edited or removed, an id is used twice, a case is not in the ledger, provenance is missing/invalid or a `supersedes` is bad. Writes nothing. |
+| `eva dataset lock PATH [--dry-run]` | Records new cases in the ledger. Refuses (writes nothing) on any problem other than the cases being unrecorded. |
+| `eva dataset add PATH --from CASES.jsonl [--file NAME.jsonl] [--dry-run]` | Directory datasets only. Appends the cases to `NAME.jsonl` (created if new; optional when the directory holds exactly one `.jsonl`) and records them. A case whose id and content hash are already present is skipped; the same id with different content is refused. Nothing is written if any case is refused. `--from -` reads stdin. |
+
+```bash
+eva dataset check pool/ --format json
+# {"ok": true, "cases": 120, "scored": 118, "superseded": 2, "problems": []}
+eva dataset add pool/ --from new-cases.jsonl --file reasoning.jsonl --dry-run
+```
+
+JSON shapes: `check` -> `ok, cases, scored, superseded, problems`;
+`lock` -> `ok, dry_run, recorded, problems`; `add` -> `ok, dry_run, added,
+skipped, problems`. Each problem is `{code, id, message}` with `code` one of
+`edited`, `removed`, `collision`, `unrecorded`, `provenance`, `supersedes`,
+`conflict`, `invalid`.
+
+### Exit Codes:
+- `0`: Check passed / cases recorded or added.
+- `2`: Bad input: dataset not found or unreadable, not append-only,
+  invalid `--format`, unusable `--file`.
+- `3`: Integrity check failed; nothing was written.
+
+`eva run --dataset` on an append-only dataset runs the same check first
+and exits `3` (problems on stderr) without calling the target.
 
 ---
 
