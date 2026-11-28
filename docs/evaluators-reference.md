@@ -315,8 +315,9 @@ What is **not** contained:
   allocation can overshoot the cap briefly. Process count is likewise polled; on Linux a
   process that leaves the process group can outlive the run.
 - When no OS layer is available (no `sandbox-exec`, user namespaces disabled, or eva itself
-  already inside a sandbox), the run falls back to the limits above and logs one warning.
-  Check `core.evaluators._sandbox.isolation_status()` for what is active.
+  already inside a sandbox, as in many containers and CI runners), the run falls back to the
+  limits above and logs one warning that includes the active layers. Set
+  `require_isolation: true` to score such cases `0.0` without running them. Check `core.evaluators._sandbox.isolation_status()` for what is active.
 - A kernel or sandbox bug, or an attack by another process of the same user, is out of scope.
 
 ### Configuration Properties:
@@ -327,6 +328,7 @@ What is **not** contained:
 | `test_code` | `string` | No | Shared harness appended after each case's tests. |
 | `memory_mb` | `integer` | No | Resident-memory cap for the run, default `512`. |
 | `max_file_mb` | `integer` | No | Largest file the program may write (including stdout/stderr), default `16`. |
+| `require_isolation` | `boolean` | No | Default `false`. When `true` and no OS-level layer (`sandbox-exec`, network namespace) is active on the host, the case scores `0.0` naming what is not active, and the program is not run. When `false`, the run uses the best available layer and logs one warning with `isolation_status()`. |
 | `partial` | `boolean` | No | stdin/stdout mode only. Default `false` (all-or-nothing); `true` scores `passed/total`. |
 
 ### Test-case fields:
