@@ -63,6 +63,67 @@ def test_description_limits_and_trigger():
     assert "\n" not in desc.strip()
 
 
+BLOCK_INDICATOR = re.compile(r"^[>|][+-]?\d?[ \t]*(#.*)?$")
+DESCRIPTION_LINE = re.compile(r"^description[ \t]*:(.*)$")
+
+
+def description_problems(text: str) -> list[str]:
+    """Why the frontmatter description is not a single-line scalar.
+
+    Skill loaders read only the text on the `description:` line, so block
+    scalars (`>`, `>-`, `|`, `|-`, ...) and continued lines load empty or
+    truncated even though YAML parses them fine.
+    """
+    head = text[4:].partition("\n---\n")[0].splitlines()
+    problems: list[str] = []
+    for i, line in enumerate(head):
+        m = DESCRIPTION_LINE.match(line)
+        if not m:
+            continue
+        rest = m.group(1).strip()
+        if not rest:
+            problems.append("description has no value on its own line")
+        elif BLOCK_INDICATOR.match(rest):
+            problems.append(f"description uses block scalar {rest!r}")
+        nxt = head[i + 1] if i + 1 < len(head) else ""
+        if nxt.strip() and nxt[0] in " \t":
+            problems.append("description continues on the next line")
+        break
+    else:
+        problems.append("no description key")
+    meta = yaml.safe_load("\n".join(head))
+    desc = meta.get("description") if isinstance(meta, dict) else None
+    if not isinstance(desc, str) or "\n" in desc.strip():
+        problems.append("description is not a single-line string")
+    return problems
+
+
+def test_description_is_single_line_scalar():
+    assert description_problems(SKILL_MD.read_text()) == []
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "description: >\n  Use when a. b.",
+        "description: >-\n  Use when a. b.",
+        "description: |\n  Use when a. b.",
+        "description: |-\n  Use when a. b.",
+        "description: >2-\n  Use when a. b.",
+        "description: Use when a.\n  continued here",
+        'description: "Use when a.\n  continued here"',
+        "description:\n  Use when a. b.",
+    ],
+)
+def test_description_check_rejects_multiline_forms(line):
+    assert description_problems(f"---\nname: x\n{line}\n---\nbody\n")
+
+
+def test_description_check_accepts_one_line_forms():
+    for line in ("description: Use when a. b.", 'description: "Use when: a # b."'):
+        assert description_problems(f"---\nname: x\n{line}\n---\nbody\n") == []
+
+
 def test_body_within_budget():
     _, body = _split(SKILL_MD.read_text())
     lines = body.strip("\n").splitlines()
