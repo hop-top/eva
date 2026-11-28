@@ -90,10 +90,16 @@ def runs_list(
 def runs_show(
     run_id: str = typer.Option(..., "--run-id", help="Run ID to inspect."),
     db: Optional[str] = typer.Option(None, "--db", help="Path to SQLite DB file."),
+    since: Optional[str] = typer.Option(
+        None, "--since",
+        help="Also report accuracy on cases whose metadata.added is on/after "
+        "this ISO date (YYYY-MM-DD).",
+    ),
 ) -> None:
-    """Show run details and its invocations."""
+    """Show run details, per-category pass counts and its invocations."""
     from core.query import list_runs, list_invocations
 
+    since_date = _parse_since_or_exit(since)
     storage = _storage(db)
     runs = list_runs(storage, limit=1000)
     run = next((r for r in runs if r.run_id == run_id), None)
@@ -111,6 +117,13 @@ def runs_show(
     console.print(f"  Status:     {status_str}")
     console.print(f"  Started at: {started}")
     console.print(f"  Duration:   {run.duration_ms}ms")
+
+    from core.categories import format_figures
+    from core.query import get_run_cases
+    from rich.markup import escape
+
+    for line in format_figures(get_run_cases(storage, run_id), since_date):
+        console.print(escape(line))
 
     # Invocations in this run
     invocations = list_invocations(storage, run_id=run_id, limit=500)
@@ -155,6 +168,18 @@ def runs_show(
         )
 
     console.print(table)
+
+
+def _parse_since_or_exit(since: Optional[str]):
+    if since is None:
+        return None
+    from core.categories import parse_since
+
+    try:
+        return parse_since(since)
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(2)
 
 
 def _status_cell(status: Optional[str]) -> str:
@@ -309,12 +334,19 @@ def compare(
     left: str = typer.Option(..., "--left", help="Left (baseline) run ID."),
     right: str = typer.Option(..., "--right", help="Right (new) run ID."),
     db: Optional[str] = typer.Option(None, "--db", help="Path to SQLite DB file."),
+    since: Optional[str] = typer.Option(
+        None, "--since",
+        help="Also compare accuracy on cases whose metadata.added is on/after "
+        "this ISO date (YYYY-MM-DD).",
+    ),
 ) -> None:
-    """Side-by-side diff of two runs: model, pass rate, cost, latency."""
+    """Side-by-side diff of two runs: model, pass rate per evaluator and per category, cost, latency."""
+    from core.categories import UNCATEGORISED
     from core.query import compare_runs
 
+    since_date = _parse_since_or_exit(since)
     storage = _storage(db)
-    result = compare_runs(storage, left, right)
+    result = compare_runs(storage, left, right, since=since_date)
 
     if "error" in result:
         console.print(f"[red]Error:[/red] {result['error']}")
@@ -405,6 +437,42 @@ def compare(
             ev_table.add_row(ev, l_str, r_str, diff_str)
 
         console.print(ev_table)
+
+    cat_diffs = result["category_diffs"]
+    if any(c != UNCATEGORISED for c in cat_diffs):
+        cat_table = Table(title="Per-Category Pass Rate", show_lines=False)
+        cat_table.add_column("Category", style="magenta")
+        cat_table.add_column("Left", justify="right")
+        cat_table.add_column("Right", justify="right")
+        cat_table.add_column("Diff", justify="right")
+        for cat, d in cat_diffs.items():
+            pr_diff = d["pass_rate_diff"]
+            cat_table.add_row(
+                cat,
+                _fmt_ratio(d["left"]),
+                _fmt_ratio(d["right"]),
+                (
+                    _colorize_diff(f"{pr_diff*100:+.1f}%", pr_diff, lower_is_better=False)
+                    if pr_diff is not None else _NA
+                ),
+            )
+        console.print(cat_table)
+
+    sd = result["since_diff"]
+    if sd is not None:
+        ls_, rs_ = sd["left"], sd["right"]
+        console.print(
+            f"Since {ls_.since}: left {ls_.passed}/{ls_.total} "
+            f"({ls_.excluded} without added date excluded), "
+            f"right {rs_.passed}/{rs_.total} "
+            f"({rs_.excluded} without added date excluded)"
+        )
+
+
+def _fmt_ratio(score: Optional[dict]) -> str:
+    if not score:
+        return _NA
+    return f"{score['passed']}/{score['total']}"
 
 
 def _diff_int(a: int, b: int) -> str:

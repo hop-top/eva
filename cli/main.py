@@ -175,6 +175,11 @@ def run(
         None, "--prompt-file",
         help="Standalone mode: file with the request prompt ('-' for stdin; not with --input -)",
     ),
+    since: str | None = typer.Option(
+        None, "--since",
+        help="Dataset mode: also report accuracy on cases whose metadata.added "
+        "is on/after this ISO date (YYYY-MM-DD).",
+    ),
 ):
     """Run evaluations.
 
@@ -221,6 +226,9 @@ def run(
                 "[red]Error:[/red] --contract/--input cannot be combined with --dataset/--target"
             )
             raise typer.Exit(2)
+        if since is not None:
+            console.print("[red]Error:[/red] --since applies to dataset mode only")
+            raise typer.Exit(2)
         from cli.run_contract import run_contract_cli
 
         chosen_fmt = fmt or ("json" if not sys.stdout.isatty() else "text")
@@ -256,6 +264,16 @@ def run(
     if fmt is not None and fmt not in ("json", "text"):
         console.print("[red]Error:[/red] --format must be 'json' or 'text'")
         raise typer.Exit(2)
+
+    since_date = None
+    if since is not None:
+        from core.categories import parse_since
+
+        try:
+            since_date = parse_since(since)
+        except ValueError as e:
+            console.print(f"[red]Error:[/red] {e}")
+            raise typer.Exit(2)
 
     if target and not (target.startswith("http://") or target.startswith("https://")):
         console.print("[red]Error:[/red] --target must start with http:// or https://")
@@ -325,12 +343,22 @@ def run(
 
     if fmt == "json":
         eva_run = asyncio.run(runner.execute(ds))
+        if since_date is not None:
+            from core.categories import since_score
+
+            eva_run.since = since_score(eva_run.cases, since_date)
         print(eva_run.model_dump_json())
-    elif no_tui:
-        eva_run = asyncio.run(runner.execute(ds))
-        _print_plain(eva_run)
     else:
-        eva_run = _run_with_tui(runner, ds)
+        if no_tui:
+            eva_run = asyncio.run(runner.execute(ds))
+            _print_plain(eva_run)
+        else:
+            eva_run = _run_with_tui(runner, ds)
+        from core.categories import format_figures
+        from rich.markup import escape
+
+        for line in format_figures(eva_run.cases, since_date):
+            console.print(escape(line))
 
     if getattr(eva_run, "skipped", None):
         from rich.console import Console as _Console

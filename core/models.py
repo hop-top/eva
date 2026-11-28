@@ -4,6 +4,8 @@ from datetime import datetime
 from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, model_validator
 
+from core.categories import CaseOutcome, CategoryScore, SinceScore
+
 
 class Score(BaseModel):
     value: float
@@ -74,6 +76,12 @@ class Run(BaseModel):
     # LLM adapter configured), as "name: reason" strings. Skips never fail a
     # run; they are surfaced so CI can notice silently-missing coverage.
     skipped: list[str] = []
+    # One outcome per case (incl. cases no evaluator applied to) and the
+    # per-category pass counts over scored cases; see core/categories.py.
+    cases: list[CaseOutcome] = []
+    categories: dict[str, CategoryScore] = {}
+    # Set by `eva run --since`: accuracy on cases added since a date.
+    since: SinceScore | None = None
 
 
 # ---------------------------------------------------------------------------

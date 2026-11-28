@@ -40,6 +40,7 @@ Loads a dataset of test cases and calls a live agent for each.
 | `--max-tokens`, `--temperature`, `--top-p`, `--timeout-s` | Optional. Chat target sampling / timeout. |
 | `--concurrency` | Optional. Number of concurrent test executions. Default: `1`. |
 | `--no-tui` | Optional. Plain-text output for CI. |
+| `--since` | Optional. `YYYY-MM-DD`. Also report accuracy on cases whose `metadata.added` is on or after the date. Invalid date: exit `2`. |
 
 ```bash
 eva run --dataset evals/my_suite.yaml --target http://localhost:8000/chat
@@ -53,6 +54,16 @@ Chat target flags merge over the dataset's `target:` mapping (flags win);
 they cannot be combined with `--target` (exit `2`). See
 [dataset-reference.md](dataset-reference.md). Each run prints its
 `Run: <id>` for `eva runs show --run-id <id>` / `eva compare`.
+
+### Per-category figures
+
+Cases carry `metadata.category`; `eva run` prints passed/total per category
+after the results, `--format json` carries them under `categories`, and
+`eva runs show --run-id <id>` and `eva compare --left <a> --right <b>` show
+the same figures for stored runs. Both accept `--since YYYY-MM-DD` like
+`eva run` (invalid date: exit `2`). Cases without a category are reported
+as `uncategorised`; cases no evaluator applied to are not scored. Details:
+[dataset-reference.md](dataset-reference.md#case-categories).
 
 ### Standalone contract mode
 
