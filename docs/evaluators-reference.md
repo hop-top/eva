@@ -4,6 +4,24 @@ Evaluators analyze an agent's response and return a **Score** (0.0 to 1.0). In P
 
 ---
 
+## Invalid evaluator configuration
+
+An evaluator whose configuration is invalid (a value out of range or of the wrong
+type, a missing required key, an unparsable `regex` pattern, contradictory
+settings) fails a dataset run before any target call. `eva run` exits `2` and
+names the evaluator and the problem, e.g.
+`evaluator 'key_facts': threshold must be in (0, 1]`. This is different from an
+evaluator that does not apply to a case (no result is recorded for that case) and
+from a judge evaluator with no judge configured (listed under `skipped`, the rest
+of the run proceeds).
+
+Dataset entries carry the evaluator's settings and its pass settings in one
+mapping, so `mode` is both: `refusal` and `sentence_paragraph_count` take their own
+`mode` values (`forbid`/`require`, `sentence`/`paragraph`), and any other value, such
+as the pass mode `binary`, is rejected as invalid configuration in a dataset.
+
+---
+
 ## Tool-call log
 
 When a chat-target case offers `tools` (see
@@ -303,7 +321,7 @@ whitespace-normalised by default. Reasoning (`<think>...</think>`) is ignored.
 contradicts an explicit `threshold` (`mode: binary` with `threshold: 0.75`, or a different
 `min_score`) is a configuration error. The same rule applies to dataset runs,
 `eva run --contract` and the gateway (`/v1/contract/invoke`, `/v1/contract/evaluate`,
-`/v1/proxy`). A contradiction makes `eva run --contract` exit `2` with the message, makes
+`/v1/proxy`). A contradiction makes `eva run --dataset` and `eva run --contract` exit `2` with the message, makes
 `/v1/proxy` answer `422`, and makes the gateway skip that contract at load with a warning.
 
 **Dataset-case evaluator:** reads `metadata.key_facts` from the case (shape in

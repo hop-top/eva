@@ -12,6 +12,7 @@ from core.chat_targets import ChatResult, TargetError
 from core.adapters import CaseResultStore
 from core.case_results import build_record
 from core.dataset import Dataset, case_hash
+from core.evaluators.errors import JudgeAdapterRequired, build_evaluator
 from core.events import EventSink, NullEventSink
 from core.models import (
     Artifact, EvaluatorResult, Invocation, Result, Run, Score, UsageRecord,
@@ -124,12 +125,13 @@ class Runner:
             if factory is None:
                 plugin_cfgs.append(cfg_dict)
                 continue
-            cfg_dict = with_default_pass_rule(cfg_dict)
+            # Invalid config (pass rule or factory) raises EvaluatorConfigError
+            # and fails the run before any target call; only a judge with no
+            # adapter is skipped.
             try:
-                instance = factory(cfg_dict, self.llm_adapter)
-            except ValueError as e:
-                # Judge-based factory without an adapter: per-evaluator skip,
-                # never a whole-run failure.
+                cfg_dict = with_default_pass_rule(cfg_dict)
+                instance = build_evaluator(name, factory, cfg_dict, self.llm_adapter)
+            except JudgeAdapterRequired as e:
                 run_skipped.append(f"{name}: {e}")
                 continue
             builtin_specs.append((cfg_dict, instance))

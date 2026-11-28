@@ -10,8 +10,11 @@ based evaluators).
 The two-argument signature (cfg, llm_adapter) lets LLM-judge evaluators
 declare their adapter dependency explicitly while letting programmatic
 evaluators ignore it. Callers that have no adapter (e.g. CLI without an
-LLM configured) pass ``None``; LLM-judge factories should raise a clear
-error rather than silently registering broken instances.
+LLM configured) pass ``None``; LLM-judge factories raise
+``JudgeAdapterRequired`` rather than silently registering broken instances.
+Any other ``ValueError`` / ``KeyError`` / ``TypeError`` from a factory is an
+invalid config; build through ``core.evaluators.errors.build_evaluator`` to get
+it as ``EvaluatorConfigError``.
 
 Adding a new built-in evaluator: register it here. Both call sites pick it
 up automatically.
@@ -26,6 +29,7 @@ from core.evaluators.code_block_runs import CodeBlockRunsEvaluator
 from core.evaluators.code_test_passes import CodeTestPassesEvaluator
 from core.evaluators.code_tests import CodeTestsEvaluator
 from core.evaluators.contains import ContainsEvaluator
+from core.evaluators.errors import JudgeAdapterRequired
 from core.evaluators.equals import EqualsEvaluator, _MISSING as _EQUALS_MISSING
 from core.evaluators.content_quality import (
     ContentBiasEvaluator,
@@ -81,7 +85,7 @@ EvaluatorFactory = Callable[[dict, Any | None], Any]
 def _require_llm(llm: Any | None, name: str) -> Any:
     """Raise a clear error if a judge-based factory was called without an adapter."""
     if llm is None:
-        raise ValueError(
+        raise JudgeAdapterRequired(
             f"evaluator {name!r} requires an llm_adapter; none was provided"
         )
     return llm

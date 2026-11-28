@@ -61,7 +61,7 @@ def answers_match(got: str, expected: str) -> bool:
 class AnswerMatchEvaluator:
     def __init__(self, extract: str = "whole", expected: str | None = None):
         if extract not in ("whole", "final_answer"):
-            raise ValueError("extract must be 'whole' or 'final_answer'")
+            raise ValueError(f"extract must be 'whole' or 'final_answer'; got {extract!r}")
         self.extract = extract
         self.expected = expected
 
