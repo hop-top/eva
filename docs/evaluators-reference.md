@@ -4,6 +4,35 @@ Evaluators analyze an agent's response and return a **Score** (0.0 to 1.0). In P
 
 ---
 
+## Tool-call log
+
+When a chat-target case offers `tools` (see
+[dataset-reference.md](dataset-reference.md#tool-definitions-per-case)),
+each tool call in the model's reply is recorded in reply order. Evaluators
+read the log from `tool_events` in the evaluation context: a list of
+`core.events.ToolCallEvent` objects, empty when the reply has no tool call.
+
+| Field | Meaning |
+|---|---|
+| `tool_name` | Function name the model called. |
+| `args` | Parsed arguments, a dict. `{}` when the arguments are not a valid JSON object. |
+| `raw_args` | The original argument string when it is not a valid JSON object; `None` otherwise. |
+| `step_index` | Position in the reply, starting at 0. Parallel calls keep the order the model returned them in. |
+
+Malformed arguments (truncated JSON, plain text, an empty string, or JSON
+that is not an object such as `[1, 2]`) do not fail the case: the call is
+recorded with `args == {}` and the exact string in `raw_args`. A valid
+`"{}"` also gives `args == {}` but `raw_args is None`, so the two are
+distinguishable. The Anthropic provider returns parsed input, so its
+`raw_args` is always `None`.
+
+The same calls are stored with the invocation: one tool-call row per call
+(`step_index`, `tool_name`, arguments as a `tool_args` artifact), with
+`raw_args` exposed on each entry of `tool_calls` in
+`core.query.get_invocation_detail`.
+
+---
+
 ## `contains`
 
 Checks if the agent's response contains a specific substring.

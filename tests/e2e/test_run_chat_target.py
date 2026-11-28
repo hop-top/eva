@@ -79,3 +79,28 @@ def test_json_format_has_run(tmp_path):
         r = eva(tmp_path, "run", "--dataset", str(EXAMPLE), "--format", "json",
                 "--base-url", f"{srv.url}/v1", "--model", "m")
     assert '"results"' in r.stdout
+
+
+def test_case_tools_sent_through_cli(tmp_path):
+    ds = tmp_path / "tools.yaml"
+    ds.write_text(
+        "name: tools\n"
+        "target: {provider: openai, model: m}\n"
+        "evaluators:\n  - {name: final_answer, mode: binary}\n"
+        "tests:\n"
+        "  - id: weather\n    input: 'Weather in Paris? Final answer: 6'\n"
+        "    expected_output: '6'\n    tool_choice: required\n"
+        "    tools:\n"
+        "      - type: function\n"
+        "        function: {name: get_weather, parameters: {type: object}}\n"
+    )
+    calls = {"content": "Final answer: 6",
+             "tool_calls": [{"name": "get_weather", "arguments": '{"city": '}]}
+    with FakeChatServer(lambda p: calls) as srv:
+        r = eva(tmp_path, "run", "--dataset", str(ds), "--no-tui",
+                "--base-url", f"{srv.url}/v1", "--model", "m")
+    assert r.returncode == 0, r.stdout + r.stderr
+    body = srv.requests[0]["body"]
+    assert body["tools"][0]["function"]["name"] == "get_weather"
+    assert body["tool_choice"] == "required"
+    assert len(srv.requests) == 1

@@ -378,6 +378,11 @@ class SqliteStorage(StorageAdapter):
                         status=status,
                         trace_id=evt.trace_id,
                         span_id=evt.span_id,
+                        metadata_json=(
+                            json.dumps({"raw_args": evt.raw_args})
+                            if evt.raw_args is not None
+                            else None
+                        ),
                     )
                 )
             session.commit()
