@@ -1,0 +1,96 @@
+# Grade a local OpenAI-compatible model's tool calls, no judge model.
+#
+#   eva run --dataset docs/examples/tool-call-match.yaml --no-tui
+#   # other endpoint/model, same dataset:
+#   eva run --dataset … --base-url http://localhost:11434/v1 --model qwen3:8b
+#
+# `tool_call_match` compares the calls the model returned with each case's
+# `metadata.expected_calls` (possible_answer format: function -> argument ->
+# accepted values; "" among them = argument may be omitted). The `match`
+# mode applies to the whole file; all four cases here are `parallel`
+# (any order, no extra calls).
+name: tool-call-match-sample
+
+target:
+  provider: openai
+  base_url: http://localhost:12000/v1
+  model: my-local-model
+  max_tokens: 512
+  temperature: 0.0
+  timeout_s: 120
+
+evaluators:
+  - name: tool_call_match
+    mode: binary
+    match: parallel
+    case_sensitive: false        # "paris" == "Paris"
+    normalize_whitespace: true   # " New  York " == "New York"
+
+tests:
+  - id: weather-paris
+    input: What is the weather in Paris right now?
+    tool_choice: auto
+    tools:
+      - type: function
+        function:
+          name: get_weather
+          description: Current weather for a city
+          parameters:
+            type: object
+            properties:
+              city: {type: string}
+              unit: {type: string, enum: [celsius, fahrenheit]}
+            required: [city]
+    metadata:
+      expected_calls:
+        - get_weather:
+            city: [Paris]
+            unit: [celsius, ""]      # optional: may be omitted
+
+  - id: weather-two-cities
+    input: Compare today's weather in Paris and in Rome.
+    tools:
+      - type: function
+        function:
+          name: get_weather
+          description: Current weather for a city
+          parameters:
+            type: object
+            properties: {city: {type: string}}
+            required: [city]
+    metadata:
+      expected_calls:            # two calls, in any order
+        - get_weather: {city: [Paris]}
+        - get_weather: {city: [Rome]}
+
+  - id: add-numbers
+    input: Add 2 and 3 with the calculator.
+    tools:
+      - type: function
+        function:
+          name: add
+          description: Sum of two numbers
+          parameters:
+            type: object
+            properties: {a: {type: number}, b: {type: number}}
+            required: [a, b]
+    metadata:
+      expected_calls:
+        - add: {a: [2], b: [3, 3.0]}   # 3 == 3.0
+
+  - id: set-timer
+    input: Set a timer for ten minutes called "tea".
+    tools:
+      - type: function
+        function:
+          name: set_timer
+          description: Start a countdown timer
+          parameters:
+            type: object
+            properties: {minutes: {type: integer}, label: {type: string}}
+            required: [minutes]
+    metadata:
+      expected_calls:
+        - set_timer:
+            minutes: [10]
+            label: [tea, ""]

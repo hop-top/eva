@@ -120,6 +120,25 @@ turn: every tool call in the reply is recorded in the case's tool-call
 log (see [Tool-call log](evaluators-reference.md#tool-call-log)). A reply
 without tool calls records an empty log, not an error.
 
+### Expected tool calls
+
+For the `tool_call_match` evaluator a case lists its expected calls under
+`metadata.expected_calls`; no other case field is involved. Format, modes
+and options: [`tool_call_match`](evaluators-reference.md#tool_call_match).
+
+```yaml
+tests:
+  - id: weather-paris
+    input: What is the weather in Paris?
+    tools: [...]
+    metadata:
+      expected_calls:
+        - get_weather: {city: [Paris], unit: [celsius, ""]}
+```
+
+Sample dataset:
+[`examples/tool-call-match.yaml`](examples/tool-call-match.yaml).
+
 ### CLI overrides
 
 ```sh
