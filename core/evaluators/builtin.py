@@ -21,7 +21,12 @@ up automatically.
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Callable
+
+import jsonschema
+
+from core.evaluators import config_values as cv
 
 from core.evaluators.answer_match import ExactMatchEvaluator, FinalAnswerEvaluator
 from core.evaluators.citation import CitationEvaluator
@@ -29,7 +34,7 @@ from core.evaluators.code_block_runs import CodeBlockRunsEvaluator
 from core.evaluators.code_test_passes import CodeTestPassesEvaluator
 from core.evaluators.code_tests import CodeTestsEvaluator
 from core.evaluators.contains import ContainsEvaluator
-from core.evaluators.errors import JudgeAdapterRequired
+from core.evaluators.errors import EvaluatorConfigError, JudgeAdapterRequired
 from core.evaluators.equals import EqualsEvaluator, _MISSING as _EQUALS_MISSING
 from core.evaluators.content_quality import (
     ContentBiasEvaluator,
@@ -73,7 +78,7 @@ from core.evaluators.regex_match import RegexEvaluator
 from core.evaluators.sentence_paragraph_count import SentenceParagraphCountEvaluator
 from core.evaluators.status_code import StatusCodeEvaluator
 from core.evaluators.step_efficiency import StepEfficiencyEvaluator
-from core.evaluators.tool_call_match import ToolCallMatchEvaluator
+from core.evaluators.tool_call_match import MODES as TOOL_CALL_MODES, ToolCallMatchEvaluator
 from core.evaluators.tool_correctness import ToolCorrectnessEvaluator
 from core.evaluators.tool_use import ToolUseEvaluator
 from core.evaluators.word_count import WordCountEvaluator
@@ -91,26 +96,59 @@ def _require_llm(llm: Any | None, name: str) -> Any:
     return llm
 
 
+def _json_schema(cfg: dict, _llm: Any) -> Any:
+    schema = cv.mapping(cfg, "schema")  # {} accepts anything
+    try:
+        jsonschema.validators.validator_for(schema).check_schema(schema)
+    except jsonschema.SchemaError as e:
+        raise EvaluatorConfigError(f"schema is not a valid JSON Schema: {e.message}") from e
+    return JsonSchemaEvaluator(schema=schema)
+
+
+def _status_code(cfg: dict, _llm: Any) -> Any:
+    return StatusCodeEvaluator(
+        step=cv.opt_string(cfg, "step"),
+        expected=cv.opt_integer(cfg, "expected"),
+        expected_in=cv.opt_integers(cfg, "expected_in"),
+    )
+
+
+def _equals(cfg: dict, _llm: Any) -> Any:
+    return EqualsEvaluator(
+        field=cv.opt_string(cfg, "field"),
+        # Preserve the _MISSING sentinel so the evaluator can distinguish
+        # "expected absent from YAML" (raise) from "expected: null" (valid).
+        expected=cfg["expected"] if "expected" in cfg else _EQUALS_MISSING,
+        step=cv.opt_string(cfg, "step"),
+    )
+
+
+# Programmatic factories read every key through ``config_values`` so a
+# wrong-typed value is an EvaluatorConfigError naming the key. Keep a new
+# programmatic evaluator's keys on that path.
 BUILTIN_EVALUATOR_FACTORIES: dict[str, EvaluatorFactory] = {
     # Programmatic evaluators — ignore the llm_adapter
     "contains": lambda cfg, _llm: ContainsEvaluator(
-        substring=cfg.get("substring", ""),
-        case_sensitive=cfg.get("case_sensitive", True),
-        field=cfg.get("field"),
+        substring=cv.string(cfg, "substring"),
+        case_sensitive=cv.boolean(cfg, "case_sensitive", True),
+        field=cv.opt_string(cfg, "field"),
     ),
     "regex": lambda cfg, _llm: RegexEvaluator(
-        pattern=cfg.get("pattern", ".*"),
-        field=cfg.get("field"),
+        pattern=cv.pattern(cfg, "pattern"),
+        field=cv.opt_string(cfg, "field"),
     ),
-    "json_schema_valid": lambda cfg, _llm: JsonSchemaEvaluator(schema=cfg.get("schema", {})),
+    "json_schema_valid": _json_schema,
     "last_paragraph_regex": lambda cfg, _llm: LastParagraphRegexEvaluator(
-        pattern=cfg.get("pattern", ".*"),
-        case_sensitive=cfg.get("case_sensitive", True),
+        pattern=cv.pattern(
+            cfg, "pattern",
+            flags=0 if cv.boolean(cfg, "case_sensitive", True) else re.IGNORECASE,
+        ),
+        case_sensitive=cv.boolean(cfg, "case_sensitive", True),
     ),
     "no_pii": lambda cfg, _llm: NoPiiEvaluator(),
     "word_count": lambda cfg, _llm: WordCountEvaluator(
-        max=cfg.get("max"),
-        min=cfg.get("min"),
+        max=cv.opt_integer(cfg, "max"),
+        min=cv.opt_integer(cfg, "min"),
     ),
 
     # Flow exec / step assertion (pre-expansion backlog) — programmatic.
@@ -118,35 +156,21 @@ BUILTIN_EVALUATOR_FACTORIES: dict[str, EvaluatorFactory] = {
     # class (status_code.py exports ExitCodeEvaluator = StatusCodeEvaluator);
     # both names register so contracts using either keyword resolve to a
     # factory and don't silent-skip in the gateway / CLI.
-    "status_code": lambda cfg, _llm: StatusCodeEvaluator(
-        step=cfg.get("step"),
-        expected=cfg.get("expected"),
-        expected_in=cfg.get("expected_in"),
-    ),
-    "exit_code": lambda cfg, _llm: StatusCodeEvaluator(
-        step=cfg.get("step"),
-        expected=cfg.get("expected"),
-        expected_in=cfg.get("expected_in"),
-    ),
-    "equals": lambda cfg, _llm: EqualsEvaluator(
-        field=cfg.get("field"),
-        # Preserve the _MISSING sentinel so the evaluator can distinguish
-        # "expected absent from YAML" (raise) from "expected: null" (valid).
-        expected=cfg["expected"] if "expected" in cfg else _EQUALS_MISSING,
-        step=cfg.get("step"),
-    ),
+    "status_code": _status_code,
+    "exit_code": _status_code,
+    "equals": _equals,
 
     # P1 Tier-1 new (agent A) — programmatic
     "mood": lambda cfg, _llm: MoodEvaluator(
-        expected=cfg.get("expected", "imperative"),
+        expected=cv.string(cfg, "expected", "imperative"),
     ),
     "language": lambda cfg, _llm: LanguageEvaluator(
-        expected=cfg.get("expected", "en"),
+        expected=cv.string(cfg, "expected", "en"),
     ),
     "forbidden_phrases": lambda cfg, _llm: ForbiddenPhrasesEvaluator(
-        banlist=cfg.get("banlist", []),
-        whole_word=cfg.get("whole_word", True),
-        case_sensitive=cfg.get("case_sensitive", False),
+        banlist=cv.strings(cfg, "banlist"),
+        whole_word=cv.boolean(cfg, "whole_word", True),
+        case_sensitive=cv.boolean(cfg, "case_sensitive", False),
     ),
     "refusal": lambda cfg, _llm: RefusalEvaluator(
         mode=cfg.get("mode", "forbid"),
@@ -154,33 +178,33 @@ BUILTIN_EVALUATOR_FACTORIES: dict[str, EvaluatorFactory] = {
 
     # P2 Tier-2 structure (agent D) — programmatic
     "citation": lambda cfg, _llm: CitationEvaluator(
-        allowed_sources=cfg.get("allowed_sources", []),
-        require_citation=cfg.get("require_citation", False),
+        allowed_sources=cv.strings(cfg, "allowed_sources"),
+        require_citation=cv.boolean(cfg, "require_citation", False),
     ),
     "code_block_runs": lambda cfg, _llm: CodeBlockRunsEvaluator(
-        unsupported_action=cfg.get("unsupported_action", "skip"),
-        require_code_block=cfg.get("require_code_block", False),
+        unsupported_action=cv.choice(cfg, "unsupported_action", "skip", ("skip", "fail")),
+        require_code_block=cv.boolean(cfg, "require_code_block", False),
     ),
     "code_test_passes": lambda cfg, _llm: CodeTestPassesEvaluator(
-        test_code=cfg.get("test_code", ""),
-        timeout=cfg.get("timeout", 10),
+        test_code=cv.string(cfg, "test_code"),
+        timeout=cv.seconds(cfg, "timeout", 10),
     ),
     # Dataset-mode scoring against per-case fields (``run_case``): see
     # docs/evaluators-reference.md. ``code_tests`` EXECUTES model output.
     "code_tests": lambda cfg, _llm: CodeTestsEvaluator(
-        language=cfg.get("language", "python"),
-        timeout=cfg.get("timeout", 10),
-        test_code=cfg.get("test_code", ""),
-        memory_mb=cfg.get("memory_mb", 512),
-        max_file_mb=cfg.get("max_file_mb", 16),
-        partial=cfg.get("partial", False),
-        require_isolation=cfg.get("require_isolation", False),
+        language=cv.string(cfg, "language", "python"),
+        timeout=cv.seconds(cfg, "timeout", 10),
+        test_code=cv.string(cfg, "test_code"),
+        memory_mb=cv.integer(cfg, "memory_mb", 512),
+        max_file_mb=cv.integer(cfg, "max_file_mb", 16),
+        partial=cv.boolean(cfg, "partial", False),
+        require_isolation=cv.boolean(cfg, "require_isolation", False),
     ),
     # Tool-call log vs the case's metadata.expected_calls; deterministic.
     "tool_call_match": lambda cfg, _llm: ToolCallMatchEvaluator(
-        match=cfg.get("match", "single"),
-        case_sensitive=cfg.get("case_sensitive", True),
-        normalize_whitespace=cfg.get("normalize_whitespace", False),
+        match=cv.choice(cfg, "match", "single", TOOL_CALL_MODES),
+        case_sensitive=cv.boolean(cfg, "case_sensitive", True),
+        normalize_whitespace=cv.boolean(cfg, "normalize_whitespace", False),
     ),
     "exact_match": lambda cfg, _llm: ExactMatchEvaluator(
         expected=cfg.get("expected"),
@@ -189,25 +213,25 @@ BUILTIN_EVALUATOR_FACTORIES: dict[str, EvaluatorFactory] = {
         expected=cfg.get("expected"),
     ),
     "ifeval_check": lambda cfg, _llm: IfevalCheckEvaluator(
-        pass_on=cfg.get("pass_on", "strict"),
-        instruction_id_list=cfg.get("instruction_id_list"),
-        kwargs=cfg.get("kwargs"),
+        pass_on=cv.string(cfg, "pass_on", "strict"),
+        instruction_id_list=cv.opt_strings(cfg, "instruction_id_list"),
+        kwargs=cv.opt_mappings(cfg, "kwargs"),
     ),
     "key_facts": make_key_facts,
     "json_path": lambda cfg, _llm: JsonPathEvaluator(
-        path=cfg.get("path", ""),
-        comparator=cfg.get("comparator", "eq"),
+        path=cv.string(cfg, "path"),
+        comparator=cv.string(cfg, "comparator", "eq"),
         expected=cfg.get("expected"),
     ),
     "markdown_structure": lambda cfg, _llm: MarkdownStructureEvaluator(
-        required_h2=cfg.get("required_h2", []),
-        required_code_langs=cfg.get("required_code_langs", []),
-        disallow_broken_local_links=cfg.get("disallow_broken_local_links", False),
+        required_h2=cv.strings(cfg, "required_h2"),
+        required_code_langs=cv.strings(cfg, "required_code_langs"),
+        disallow_broken_local_links=cv.boolean(cfg, "disallow_broken_local_links", False),
     ),
     "sentence_paragraph_count": lambda cfg, _llm: SentenceParagraphCountEvaluator(
         mode=cfg.get("mode", "sentence"),
-        min=cfg.get("min"),
-        max=cfg.get("max"),
+        min=cv.opt_integer(cfg, "min"),
+        max=cv.opt_integer(cfg, "max"),
     ),
 
     # Generic LLM-judge (legacy, llm_judge.py) — registered so dataset mode
@@ -300,8 +324,8 @@ BUILTIN_EVALUATOR_FACTORIES: dict[str, EvaluatorFactory] = {
     # overrides; bare-string assertions omit it and the evaluator defaults to
     # mode='auto'.
     "prose_assertion": lambda cfg, llm: ProseAssertionEvaluator(
-        assertion=cfg.get("assertion", ""),
+        assertion=cv.string(cfg, "assertion"),
         llm_adapter=llm if llm is not None else cfg.get("llm_adapter"),
-        mode=cfg.get("assertion_mode", "auto"),
+        mode=cv.string(cfg, "assertion_mode", "auto"),
     ),
 }

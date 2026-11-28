@@ -30,7 +30,7 @@ BAD_CONFIGS = {
     "key_facts": ({"threshold": 5}, "threshold"),
     "regex": ({"pattern": "("}, "'('"),
     "last_paragraph_regex": ({"pattern": "(["}, "(["),
-    "citation": ({"allowed_sources": 5}, "not iterable"),
+    "citation": ({"allowed_sources": 5}, "allowed_sources"),
     "prose_assertion": ({"assertion_mode": "wishful"}, "wishful"),
 }
 
