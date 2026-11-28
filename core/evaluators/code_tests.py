@@ -116,6 +116,7 @@ class CodeTestsEvaluator:
         memory_mb: int = 512,
         max_file_mb: int = 16,
         partial: bool = False,
+        require_isolation: bool = False,
     ):
         if timeout is None:
             raise ValueError("timeout=None is not permitted — set a second limit")
@@ -130,6 +131,7 @@ class CodeTestsEvaluator:
         self.memory_mb = memory_mb
         self.max_file_mb = max_file_mb
         self.partial = partial
+        self.require_isolation = require_isolation
 
     def run(self, response: str) -> Score:
         # No case context: only the shared ``test_code`` config can supply tests.
@@ -140,6 +142,13 @@ class CodeTestsEvaluator:
     def run_case(self, response: str, case: dict) -> Score | None:
         """Score one case; ``None`` = not applicable (case carries no tests)."""
         stdio = case.get("stdio")
+        has_work = bool(stdio) or bool(
+            "\n".join(
+                t for t in (_tests_text(case.get("tests")), self.test_code) if t
+            ).strip()
+        )
+        if has_work and (missing := self._isolation_missing()):
+            return Score(value=0.0, reason=missing)
         if stdio:
             if _tests_text(case.get("tests")).strip():
                 return Score(
@@ -159,6 +168,19 @@ class CodeTestsEvaluator:
                 value=0.0, reason=f"no {self.language.name} code block found"
             )
         return self._execute(code + "\n\n" + tests + "\n")
+
+    def _isolation_missing(self) -> str | None:
+        """With ``require_isolation``: reason when no OS-level layer is active."""
+        if not self.require_isolation:
+            return None
+        st = _sandbox.isolation_status()
+        if st.get("mechanism", "none") != "none":
+            return None
+        lacking = ", ".join(k for k, v in st.items() if k != "mechanism" and not v)
+        return (
+            "require_isolation set but no OS-level isolation is available "
+            f"(mechanism: none; not active: {lacking}); program not run"
+        )
 
     def _run(self, workdir: str, stdin_data: str | None = None) -> _sandbox.RunResult:
         return _sandbox.run_isolated(

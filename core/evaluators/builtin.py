@@ -168,6 +168,7 @@ BUILTIN_EVALUATOR_FACTORIES: dict[str, EvaluatorFactory] = {
         memory_mb=cfg.get("memory_mb", 512),
         max_file_mb=cfg.get("max_file_mb", 16),
         partial=cfg.get("partial", False),
+        require_isolation=cfg.get("require_isolation", False),
     ),
     # Tool-call log vs the case's metadata.expected_calls; deterministic.
     "tool_call_match": lambda cfg, _llm: ToolCallMatchEvaluator(

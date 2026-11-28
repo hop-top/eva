@@ -129,8 +129,10 @@ def _warn_uncontained_once() -> None:
     _warn_uncontained_once.done = True  # type: ignore[attr-defined]
     log.warning(
         "code_tests: no OS sandbox available on this host (%s); model code runs "
-        "with process/env/limit isolation only",
+        "with process/env/limit isolation only. isolation_status: %s. "
+        "Set require_isolation: true to refuse to run instead.",
         sys.platform,
+        isolation_status(),
     )
 
 

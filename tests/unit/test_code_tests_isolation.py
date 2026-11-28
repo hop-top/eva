@@ -207,3 +207,70 @@ def _mk():
 
     d = tempfile.mkdtemp(prefix="eva-code-")
     return d
+
+
+NO_LAYER = {
+    "mechanism": "none", "network": False, "fs_write": False,
+    "fs_read": False, "fork": False, "memory": True,
+}
+ACTIVE = {**NO_LAYER, "mechanism": "sandbox-exec", "network": True}
+
+
+@pytest.fixture
+def spy_runs(monkeypatch):
+    calls = []
+    orig = _sandbox.run_isolated
+
+    def spy(argv, **kw):
+        calls.append(argv)
+        return orig(argv, **kw)
+
+    monkeypatch.setattr(_sandbox, "run_isolated", spy)
+    return calls
+
+
+def test_require_isolation_without_layer_scores_zero_and_does_not_run(monkeypatch, spy_runs):
+    monkeypatch.setattr(_sandbox, "isolation_status", lambda: NO_LAYER)
+    s = run("print('hi')", require_isolation=True)
+    assert s.value == 0.0 and not spy_runs
+    assert "require_isolation" in s.reason and "mechanism: none" in s.reason
+    assert "network" in s.reason and "fs_write" in s.reason
+
+
+def test_require_isolation_without_layer_stdio_mode(monkeypatch, spy_runs):
+    monkeypatch.setattr(_sandbox, "isolation_status", lambda: NO_LAYER)
+    s = CodeTestsEvaluator(require_isolation=True).run_case(
+        fence("print(1)"), {"stdio": [{"stdin": "", "expected_stdout": "1\n"}]}
+    )
+    assert s.value == 0.0 and not spy_runs and "require_isolation" in s.reason
+
+
+def test_require_isolation_with_layer_runs(monkeypatch, spy_runs):
+    monkeypatch.setattr(_sandbox, "isolation_status", lambda: ACTIVE)
+    assert run("print('hi')", require_isolation=True).value == 1.0
+    assert spy_runs
+
+
+def test_default_runs_without_layer(monkeypatch, spy_runs):
+    monkeypatch.setattr(_sandbox, "isolation_status", lambda: NO_LAYER)
+    assert run("print('hi')").value == 1.0 and spy_runs
+
+
+def test_require_isolation_not_applicable_case_stays_none(monkeypatch):
+    monkeypatch.setattr(_sandbox, "isolation_status", lambda: NO_LAYER)
+    assert CodeTestsEvaluator(require_isolation=True).run_case(fence("x=1"), {}) is None
+
+
+def test_factory_passes_require_isolation():
+    from core.evaluators.builtin import BUILTIN_EVALUATOR_FACTORIES
+
+    ev = BUILTIN_EVALUATOR_FACTORIES["code_tests"]({"require_isolation": True}, None)
+    assert ev.require_isolation is True
+
+
+def test_warning_includes_status(monkeypatch, caplog):
+    monkeypatch.setattr(_sandbox, "isolation_status", lambda: NO_LAYER)
+    monkeypatch.setattr(_sandbox._warn_uncontained_once, "done", False, raising=False)
+    with caplog.at_level("WARNING"):
+        _sandbox._warn_uncontained_once()
+    assert "mechanism" in caplog.text and "fs_write" in caplog.text
