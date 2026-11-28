@@ -238,6 +238,41 @@ eva run --dataset docs/examples/local-openai-coding-reasoning.yaml --no-tui
 eva runs show --run-id 3fa91c02
 ```
 
+## Case categories
+
+A case names its category and when it was added in `metadata`:
+
+```yaml
+tests:
+  - id: add-2
+    input: "..."
+    expected_output: "4"
+    metadata:
+      category: arithmetic      # string; groups the per-category figures
+      added: 2026-03-05         # ISO date; read by --since
+```
+
+`eva run`, `eva runs show` and `eva compare` report passed/total per
+category next to the overall result. A case passes when every evaluator
+that applied to it passed.
+
+- A case without `metadata.category` is reported under the
+  `uncategorised` bucket (so a category literally named `uncategorised`
+  shares it). It is never dropped.
+- A case that no evaluator applied to is not scored: it is neither a pass
+  nor a fail, is left out of every passed/total figure, and is reported as
+  "not scored".
+- `--since YYYY-MM-DD` adds the figure for scored cases whose
+  `metadata.added` is on or after that date. Cases without a valid
+  `metadata.added` are excluded from it and their number is printed.
+- `eva run --format json` carries `"categories": {"<name>": {"passed": n,
+  "total": n}}`, `"cases"` (per case: `test_id`, `category`, `added`,
+  `scored`, `passed`) and, with `--since`, `"since": {"since", "passed",
+  "total", "excluded"}`.
+- `runs show` and `compare` derive the same figures from the stored
+  invocations (each keeps its case's category and added date in its
+  metadata) and evaluator results.
+
 ## Comparing models over time
 
 Every `eva run` writes the run, one invocation per case and one `agent`
@@ -250,7 +285,8 @@ usage record per chat call to `.eva/state.db`:
   reasoning, evaluator reasons (e.g. the failing assertion), usage.
 - `eva compare --left <run> --right <run>` — models, invocation counts,
   cost, **average model latency**, **prompt/completion tokens**, and
-  per-evaluator pass rate (e.g. `code_tests` 100% -> 50%).
+  per-evaluator pass rate (e.g. `code_tests` 100% -> 50%) and per-category
+  passed/total (see [Case categories](#case-categories)).
 
 Cost is blank for local models (no pricing).
 

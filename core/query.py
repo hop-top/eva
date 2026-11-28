@@ -10,6 +10,14 @@ from typing import Optional
 
 from sqlmodel import Session, select
 
+import datetime as dt
+
+from core.categories import (
+    CaseOutcome,
+    category_scores,
+    since_score,
+)
+
 from core.models import (
     Annotation,
     Artifact,
@@ -302,10 +310,51 @@ def get_invocation_detail(
     }
 
 
+def get_run_cases(storage: SqliteStorage, run_id: str) -> list[CaseOutcome]:
+    """Per-case outcomes of a stored run, derived from its invocations.
+
+    One case per invocation. Category / added date come from the invocation
+    metadata the runner records. A case with no evaluator results is not
+    scored; otherwise it passed iff every evaluator result passed.
+    """
+    with Session(storage.engine) as session:
+        invs = session.exec(
+            select(InvocationRecord)
+            .where(InvocationRecord.run_id == run_id)
+            .order_by(InvocationRecord.started_at)  # type: ignore[arg-type]
+        ).all()
+        results: dict[str, list[bool]] = {}
+        if invs:
+            for er in session.exec(
+                select(EvaluatorResultRecord).where(
+                    EvaluatorResultRecord.invocation_id.in_(  # type: ignore[attr-defined]
+                        [i.invocation_id for i in invs]
+                    )
+                )
+            ).all():
+                results.setdefault(er.invocation_id, []).append(bool(er.passed))
+    cases: list[CaseOutcome] = []
+    for inv in invs:
+        try:
+            meta = json.loads(inv.metadata_json) if inv.metadata_json else {}
+        except ValueError:
+            meta = {}
+        passes = results.get(inv.invocation_id, [])
+        cases.append(CaseOutcome(
+            test_id=inv.test_id or inv.invocation_id,
+            category=meta.get("category"),
+            added=meta.get("added"),
+            scored=bool(passes),
+            passed=bool(passes) and all(passes),
+        ))
+    return cases
+
+
 def compare_runs(
     storage: SqliteStorage,
     left_run_id: str,
     right_run_id: str,
+    since: Optional[dt.date] = None,
 ) -> dict:
     """Side-by-side comparison of two runs.
 
@@ -418,9 +467,37 @@ def compare_runs(
             "score_diff": (r_sc - l_sc) if (l_sc is not None and r_sc is not None) else None,
         }
 
+    left_cases = get_run_cases(storage, left_run_id)
+    right_cases = get_run_cases(storage, right_run_id)
+    l_cat = category_scores(left_cases)
+    r_cat = category_scores(right_cases)
+    category_diffs: dict[str, dict] = {}
+    for cat in [*l_cat, *(c for c in r_cat if c not in l_cat)]:
+        lc, rc = l_cat.get(cat), r_cat.get(cat)
+        l_pr = lc.passed / lc.total if lc else None
+        r_pr = rc.passed / rc.total if rc else None
+        category_diffs[cat] = {
+            "left": lc.model_dump() if lc else None,
+            "right": rc.model_dump() if rc else None,
+            "left_pass_rate": l_pr,
+            "right_pass_rate": r_pr,
+            "pass_rate_diff": (
+                r_pr - l_pr if l_pr is not None and r_pr is not None else None
+            ),
+        }
+
     return {
         "left": left_run,
         "right": right_run,
+        "category_diffs": category_diffs,
+        "since_diff": (
+            {
+                "left": since_score(left_cases, since),
+                "right": since_score(right_cases, since),
+            }
+            if since is not None
+            else None
+        ),
         "left_stats": left_stats,
         "right_stats": right_stats,
         "cost_diff_usd": right_stats["total_cost_usd"] - left_stats["total_cost_usd"],

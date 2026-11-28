@@ -7,6 +7,7 @@ from typing import Any, Callable, Awaitable
 
 import pluggy
 
+from core.categories import CaseOutcome, case_labels, category_scores
 from core.chat_targets import ChatResult, TargetError
 from core.dataset import Dataset
 from core.events import EventSink, NullEventSink
@@ -97,6 +98,7 @@ class Runner:
         started_at = datetime.now(timezone.utc)
         run_id = str(uuid.uuid4())[:8]
         results: list[Result] = []
+        outcomes: dict[int, CaseOutcome] = {}
 
         # --- resolve builtin evaluators once per run ---
         # Entries in dataset.evaluators whose name matches a builtin factory
@@ -259,6 +261,7 @@ class Runner:
                 test_results: list[Result] = []
                 ev_results: list[EvaluatorResult] = []
                 passed_all = True
+                category, added = case_labels(test.metadata)
 
                 for ev_config, score in paired:
                     ev_name = ev_config.get("name", "unknown")
@@ -290,6 +293,14 @@ class Runner:
                         reason=score.reason,
                         duration_ms=duration_ms,
                     ))
+
+                outcomes[id(test)] = CaseOutcome(
+                    test_id=test.id,
+                    category=category,
+                    added=added,
+                    scored=bool(paired),
+                    passed=bool(paired) and passed_all,
+                )
 
                 # --- observability: persist if storage wired ---
                 if self.storage is not None:
@@ -332,6 +343,10 @@ class Runner:
                     )
                     artifacts = [req_artifact, resp_artifact]
                     meta: dict[str, Any] = {}
+                    if category is not None:
+                        meta["category"] = category
+                    if added is not None:
+                        meta["added"] = added
                     if target_error:
                         meta["error"] = target_error
                     if chat is not None:
@@ -387,6 +402,7 @@ class Runner:
 
         t_end = datetime.now(timezone.utc)
         passed = all(r.passed for r in results) if results else True
+        cases = [outcomes[id(t)] for t in dataset.tests]
         return Run(
             run_id=run_id,
             dataset=dataset.name,
@@ -396,4 +412,6 @@ class Runner:
             duration_ms=int((t_end - started_at).total_seconds() * 1000),
             passed=passed,
             skipped=run_skipped,
+            cases=cases,
+            categories=category_scores(cases),
         )
