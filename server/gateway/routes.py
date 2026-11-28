@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, model_validator
 from core.evaluators.builtin import BUILTIN_EVALUATOR_FACTORIES
+from core.evaluators.errors import EvaluatorConfigError, JudgeAdapterRequired, build_evaluator
 from core.evaluators.judge_support import build_judge, judge_skip_reason
 from core.costing import estimate_cost
 from core.events import EventSink, NullEventSink
@@ -140,15 +141,18 @@ class ProxyRequest(BaseModel):
 def _build_evaluator_map(specs: list[EvaluatorSpec]) -> dict:
     """Sync-only evaluator map (queue tasks): no judge, no skipping.
 
-    Judge factories raise a clear ValueError here (see
-    core/evaluators/builtin.py:_require_llm). Request handling uses
+    Judge factories raise JudgeAdapterRequired here (see
+    core/evaluators/builtin.py:_require_llm); a bad config raises
+    EvaluatorConfigError. Request handling uses
     `_build_request_evaluators`, which runs or skips them.
     """
     evaluator_map = {}
     for spec in specs:
         factory = _BUILTIN_EVALUATOR_FACTORIES.get(spec.name)
         if factory:
-            evaluator_map[spec.name] = factory(spec.config, None)
+            evaluator_map[spec.name] = build_evaluator(
+                spec.name, factory, spec.config, None
+            )
     return evaluator_map
 
 
@@ -177,7 +181,8 @@ def _build_request_evaluators(
 
     Judge evaluators run when a judge is configured, they need nothing beyond
     (prompt, response) and ``body[prompt_field]`` is a string; otherwise they
-    are skipped with a reason, never an error.
+    are skipped with a reason, never an error. A bad evaluator config raises
+    ``EvaluatorConfigError``.
     """
     prompt, prompt_why = _prompt_skip(prompt_field, body or {})
     return build_evaluators_for_prompt(specs, prompt, prompt_why)
@@ -200,9 +205,11 @@ def build_evaluators_for_prompt(
         if not factory:
             continue
         try:
-            evaluator_map[spec.name] = factory(spec.config, None)
+            evaluator_map[spec.name] = build_evaluator(
+                spec.name, factory, spec.config, None
+            )
             continue
-        except ValueError as exc:
+        except JudgeAdapterRequired as exc:
             # Judge-based factories raise without an adapter (see
             # core/evaluators/builtin.py:_require_llm).
             err = exc
@@ -390,9 +397,12 @@ async def proxy(req: ProxyRequest) -> Any:
         #   context["event_sink"].emit_tool_call(tool_name, args, ...)
         sink = EventSink()
         context = {"request_id": request_id, "trace_id": trace_id, "event_sink": sink}
-        evaluator_map, skipped = _build_request_evaluators(
-            req.evaluators, req.prompt_field, req.body
-        )
+        try:
+            evaluator_map, skipped = _build_request_evaluators(
+                req.evaluators, req.prompt_field, req.body
+            )
+        except EvaluatorConfigError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
 
         contract = Contract(
             name="inline",

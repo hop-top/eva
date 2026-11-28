@@ -118,6 +118,18 @@ configured; see [Judge evaluators in the gateway](llm-evaluators.md#judge-evalua
 
 See [Error Response Shape](#error-response-shape) above.
 
+#### Response — invalid inline evaluator (`422`)
+
+An inline evaluator with invalid configuration is rejected before the agent is
+called, with the problem in `detail`:
+
+```json
+{"detail": "evaluator 'regex': invalid regular expression '(': missing ), unterminated subpattern"}
+```
+
+A judge evaluator with no judge configured is not rejected; it is listed under
+`skipped`.
+
 #### Response — upstream error (`502`)
 
 ```json
@@ -315,6 +327,10 @@ and in the violation's `message`. The agent is not called.
 ```json
 {"detail": "Contract registry not initialized"}
 ```
+
+A contract file with an invalid evaluator configuration is skipped at load with
+a warning naming the file and the problem, so it is `404` here, like any contract
+that is not loaded.
 
 `eva serve` always initialises the registry (empty when no contracts load, so
 an unknown name is `404`); `503` arises only when the app is created without
