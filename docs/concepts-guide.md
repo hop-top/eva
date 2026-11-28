@@ -90,3 +90,25 @@ Plugins can be defined locally in an `eva_plugins.py` file for a specific projec
 Eva is built with interoperability in mind. It aligns with the **AGNTCY** protocol (OASF and ACP standards) to ensure it can work with any agent that follows industry standards like **A2A** (Agent2Agent) or **MCP** (Model Context Protocol).
 
 Internally, Eva's contracts are compatible with OASF (Open Agentic Schema Framework), making it the "connective tissue" for a multi-agent ecosystem.
+
+---
+
+## 8. Invocation, EvaluatorResult and Artifact
+
+Beyond the run summary, Eva stores a record per evaluated call:
+
+- **Invocation**: one call evaluated by Eva. A **Run** is a whole `eva run`;
+  an Invocation is one case in it (`eva run` writes one per scored case).
+  It carries the target, model, status, timing, and links to the call's
+  payloads.
+- **EvaluatorResult**: one evaluator's score, pass/fail and reason on one
+  Invocation. A case with three evaluators has three rows, so failures can
+  be filtered across runs (`eva failures list`).
+- **Artifact**: a stored payload (request, response, reasoning, tool
+  arguments). Invocations and tool calls reference artifacts by id instead
+  of holding the content.
+
+Query them with `eva runs show`, `eva invocations show`, `eva compare`,
+`eva failures list` and `eva usage report` ([cli-reference.md](cli-reference.md)).
+Field reference: [observability-data-model.md](observability-data-model.md).
+

@@ -245,6 +245,129 @@ entries.
 
 ---
 
+## `eva invocations show`
+
+Full detail for one invocation: header fields, request and response
+artifacts, then tables of evaluator results, tool calls and usage. Ids come
+from `eva runs show` or `eva failures list`. Data model:
+[observability-data-model.md](observability-data-model.md).
+
+| Flag | Description |
+|---|---|
+| `--id` | **Required**. Invocation id. |
+| `--db` | Optional. Path to the SQLite DB file (default `.eva/state.db`). |
+
+```bash
+eva invocations show --id 0b6f2c1e-4a8d-4f57-9a3e-6d1c2e7f8a90
+```
+
+### Exit Codes:
+- `0`: Invocation shown.
+- `1`: Invocation not found (`Invocation not found: <id>`).
+- `2`: Missing or unknown flag.
+
+---
+
+## `eva compare`
+
+Two runs side by side: model(s), invocation count, total cost, average model
+latency, prompt and completion tokens (one summary table), per-evaluator
+pass rates, and per-category pass rates when cases carry a category
+(see [Per-category figures](#per-category-figures)). Cost, latency and token
+rows come from stored usage records; the diff column is right minus left.
+For two targets across many runs use [`eva results compare`](#eva-results-compare).
+
+| Flag | Description |
+|---|---|
+| `--left` | **Required**. Baseline run id. |
+| `--right` | **Required**. New run id. |
+| `--since` | Optional. ISO date `YYYY-MM-DD`; also compares accuracy on cases whose `metadata.added` is on or after it. |
+| `--db` | Optional. Path to the SQLite DB file. |
+
+```bash
+eva compare --left 3fa91c02 --right 77be0d15
+```
+
+### Exit Codes:
+- `0`: Comparison shown.
+- `1`: A run id is not found (`Error: Run(s) not found: ['<id>']`).
+- `2`: Bad `--since` date, or a missing or unknown flag.
+
+---
+
+## `eva failures list`
+
+Failed evaluator results, one row per failure: invocation id, dataset,
+model, evaluator, score, reason. Filters combine with AND.
+
+| Flag | Description |
+|---|---|
+| `--evaluator` | Optional. Evaluator name. |
+| `--model` | Optional. Model name. |
+| `--contract` | Optional. Contract name. |
+| `--dataset` | Optional. Dataset name. |
+| `--limit` | Optional. Max rows; default `50`. |
+| `--db` | Optional. Path to the SQLite DB file. |
+
+```bash
+eva failures list --evaluator contains --model gpt-4o --limit 20
+```
+
+### Exit Codes:
+- `0`: Table shown, or `No failures found.` when nothing matches.
+- `2`: Missing or unknown flag.
+
+---
+
+## `eva usage report`
+
+Token totals and cost by model, over every stored invocation or only those
+matching the filters. Prints the invocation count, prompt, completion and
+total tokens, estimated cost in USD, and a per-model table.
+
+| Flag | Description |
+|---|---|
+| `--dataset` | Optional. Dataset name. |
+| `--target` | Optional. Target URL or id, as stored on the invocation. |
+| `--db` | Optional. Path to the SQLite DB file. |
+
+```bash
+eva usage report --dataset my_suite
+```
+
+Cost sums the `estimated_cost_usd` stored with each usage record. `eva run`
+stores token counts without a cost estimate, so for run data the cost
+columns read `$0.000000`; the token columns are real.
+
+### Exit Codes:
+- `0`: Report shown (zeros when nothing matches).
+- `2`: Missing or unknown flag.
+
+---
+
+## `eva annotate add` / `eva annotate list` / `eva review queue`
+
+Human review of stored invocations. Workflow, columns and examples:
+[annotation-guide.md](annotation-guide.md).
+
+| Command | Flags | Description |
+|---|---|---|
+| `eva annotate add` | `--invocation` (**required**), `--label`, `--score` (`0.0`-`1.0`), `--notes`, `--reviewer` (default `human`), `--db` | Store an annotation; prints its id. |
+| `eva annotate list` | `--invocation` (**required**), `--db` | List the annotations on an invocation. |
+| `eva review queue` | `--failed-only`, `--db` | Invocations with no annotation or with a failing evaluator result; `--failed-only` keeps only the latter. |
+
+```bash
+eva annotate add --invocation 0b6f2c1e --label wrong --score 0.0 --notes "missed refund"
+eva review queue --failed-only
+```
+
+### Exit Codes:
+- `0`: Done, including an empty list or queue. `annotate add` does not check
+  that the invocation id exists.
+- `2`: Missing or unknown flag.
+
+---
+
 ## `eva results list` / `export` / `import` / `compare`
 
 Per-case results per target, kept across runs. Every `eva run` in dataset

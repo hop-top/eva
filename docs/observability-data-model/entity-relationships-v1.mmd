@@ -1,0 +1,143 @@
+erDiagram
+    RunRecord {
+        string run_id PK
+        string dataset
+        string target
+        datetime started_at
+        int duration_ms
+        bool passed
+        string results_json "serialized results"
+    }
+
+    InvocationRecord {
+        string invocation_id PK
+        string run_id FK "nullable"
+        string source
+        string dataset
+        string test_id
+        string target
+        string provider
+        string model
+        string model_version
+        string contract_name
+        string request_id
+        string trace_id
+        datetime started_at
+        int duration_ms
+        string status
+        string request_artifact_id FK
+        string response_artifact_id FK
+        string retrieval_artifact_id FK
+        string metadata_json
+    }
+
+    ArtifactRecord {
+        string artifact_id PK
+        string kind
+        string content_type
+        string storage_backend
+        string text_content
+        string json_content
+        string blob_path
+        string sha256
+        int size_bytes
+        bool redacted
+        datetime created_at
+    }
+
+    EvaluatorResultRecord {
+        string evaluator_result_id PK
+        string invocation_id FK
+        string evaluator
+        string mode
+        float min_score
+        float score_value
+        bool passed
+        string reason
+        int duration_ms
+        string metadata_json
+    }
+
+    ToolCallRecord {
+        string tool_call_id PK
+        string invocation_id FK
+        int step_index
+        string tool_name
+        string args_artifact_id FK
+        string result_artifact_id FK
+        string error_text
+        datetime started_at
+        int duration_ms
+        string status
+        string trace_id
+        string span_id
+        string metadata_json
+    }
+
+    UsageRecordRecord {
+        string usage_id PK
+        string invocation_id FK
+        string scope
+        string provider
+        string model
+        int prompt_tokens
+        int completion_tokens
+        int total_tokens
+        float estimated_cost_usd
+        int latency_ms
+        string raw_usage_json
+    }
+
+    AnnotationRecord {
+        string annotation_id PK
+        string invocation_id FK
+        string reviewer
+        string label
+        float score
+        string notes
+        string corrected_output_artifact_id FK
+        datetime created_at
+        string metadata_json
+    }
+
+    DatasetVersionRecord {
+        string dataset_version_id PK
+        string dataset
+        string dataset_hash
+        string git_sha
+        string source_path
+        datetime created_at
+    }
+
+    ContractVersionRecord {
+        string contract_version_id PK
+        string contract_name
+        string contract_hash
+        string git_sha
+        string artifact_id FK
+        datetime created_at
+    }
+
+    CaseResultRecord {
+        string dataset PK
+        string target_id PK
+        string case_id PK
+        string case_hash PK
+        bool passed
+        float score
+        string evaluators_json
+        string run_id
+        string at
+        string provider
+        string model
+    }
+
+    RunRecord ||--o{ InvocationRecord : "run_id"
+    InvocationRecord ||--o{ EvaluatorResultRecord : "invocation_id"
+    InvocationRecord ||--o{ ToolCallRecord : "invocation_id"
+    InvocationRecord ||--o{ UsageRecordRecord : "invocation_id"
+    InvocationRecord ||--o{ AnnotationRecord : "invocation_id"
+    InvocationRecord }o--o| ArtifactRecord : "request / response / retrieval"
+    ToolCallRecord }o--o| ArtifactRecord : "args / result"
+    AnnotationRecord }o--o| ArtifactRecord : "corrected output"
+    ContractVersionRecord }o--o| ArtifactRecord : "contract YAML"
