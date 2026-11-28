@@ -36,6 +36,71 @@ no evaluator applied to is listed under `skipped` (never fails the run).
 JSONL: one case per line, same fields; supply the target with `--target`
 or the chat flags.
 
+## Append-only datasets
+
+A dataset can declare that its cases are never edited or removed. Results
+for a case then stay comparable for as long as the dataset lives, and
+growing it is an append.
+
+```yaml
+name: pool
+target: ...
+append_only: true       # opt in; default false (nothing below applies)
+```
+
+Datasets without `append_only: true` load and run as described above.
+
+**Directory datasets.** A directory is a dataset: every `*.jsonl` file in
+it (sorted by file name, lines in order) holds cases, and an optional
+`dataset.yaml` holds the other keys (`name`, `target`, `evaluators`,
+`append_only`; no `tests`). File names carry no meaning to eva; the
+directory name is the dataset name unless the manifest sets one.
+
+```text
+pool/
+  dataset.yaml          # name, target, evaluators, append_only: true
+  reasoning.jsonl
+  coding.jsonl
+  dataset.lock.json     # ledger, written by `eva dataset lock`
+```
+
+**Case hash.** `core.dataset.case_hash(case)` is the sha256 (hex) of the
+canonical JSON of the case's content fields: `id`, `input`,
+`expected_output`, `retrieval_context`, `planned_steps`, `tests` (a list is
+joined with newlines, so it equals the string form) and `supersedes`.
+Unset fields are omitted. Keys are sorted, separators compact, text UTF-8
+without ASCII escaping. The hash depends on that case alone, so adding
+other cases never changes it. `metadata` is **not** hashed: provenance can
+be corrected without invalidating stored results.
+
+**Ledger.** `eva dataset lock` records `case id -> case hash` in a JSON
+file kept with the dataset (one line per id), so the check works on any
+machine: `suite.lock.json` next to `suite.yaml`, or `dataset.lock.json`
+inside a directory. Commit it with the dataset.
+
+**Superseding a wrong case.** Never edit it. Append a new case with
+`supersedes: <old id>`. The old case stays in the dataset and the ledger
+but is not run or scored (`eva run`, TUI totals). `supersedes` must name
+another existing case and may not form a cycle.
+
+**Provenance.** Every case of an append-only dataset needs
+`metadata.source`, `metadata.licence`, `metadata.added` (ISO date) and
+`metadata.origin` (`import`, `failure` or `handwritten`). Other datasets
+are never checked for it.
+
+```jsonl
+{"id": "gsm-0001", "input": "...", "expected_output": "6", "metadata": {"source": "gsm8k", "licence": "MIT", "added": "2026-03-01", "origin": "import"}}
+{"id": "gsm-0001b", "supersedes": "gsm-0001", "input": "...", "expected_output": "7", "metadata": {"source": "gsm8k", "licence": "MIT", "added": "2026-03-05", "origin": "failure"}}
+```
+
+`eva dataset check` fails (exit `3`) on: a recorded case whose hash
+changed (`edited`), a recorded case that disappeared (`removed`), an id
+used twice (`collision`), a case not yet in the ledger (`unrecorded`),
+missing or invalid provenance (`provenance`) and a bad `supersedes`
+(`supersedes`). `eva run` performs the same check first and exits `3`
+without running anything. See
+[cli-reference.md](cli-reference.md#eva-dataset).
+
 ## Targets
 
 ### URL target (unchanged)

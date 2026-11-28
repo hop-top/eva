@@ -377,11 +377,11 @@ class Runner:
                 return test_results
 
         if is_sequential:
-            for t in dataset.tests:
+            for t in dataset.scored_tests():
                 batch = await run_one(t)
                 results.extend(batch)
         else:
-            all_results = await asyncio.gather(*[run_one(t) for t in dataset.tests])
+            all_results = await asyncio.gather(*[run_one(t) for t in dataset.scored_tests()])
             for batch in all_results:
                 results.extend(batch)
 
