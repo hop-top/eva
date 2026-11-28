@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from core.evaluators.builtin import BUILTIN_EVALUATOR_FACTORIES
 from core.evaluators.judge_support import build_judge, judge_skip_reason
 from core.costing import estimate_cost
@@ -109,6 +109,22 @@ class EvaluatorSpec(BaseModel):
     mode: str = "binary"
     min_score: float = 1.0
     config: dict = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _default_pass_rule(self) -> "EvaluatorSpec":
+        # Same hook as core.models.EvaluatorRef: only unset mode/min_score.
+        from core.evaluators.pass_rules import resolve_pass_rule
+
+        sent = self.model_fields_set
+        resolved = resolve_pass_rule(
+            self.name,
+            self.config,
+            self.mode if "mode" in sent else None,
+            self.min_score if "min_score" in sent else None,
+        )
+        if resolved is not None and resolved != (self.mode, self.min_score):
+            self.mode, self.min_score = resolved
+        return self
 
 
 class ProxyRequest(BaseModel):

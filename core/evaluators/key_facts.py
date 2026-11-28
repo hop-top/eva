@@ -13,8 +13,8 @@ Facts live on the case under ``metadata.key_facts``::
 Score = facts found / total facts. A fact is found when ANY of its variants
 occurs as a substring of the response. A forbidden string present forces 0.0.
 The score is always the true coverage. ``threshold`` (default 1.0 = every
-fact) is the coverage that passes: the builtin factory turns it into
-``mode: threshold`` / ``min_score`` for dataset runs (see ``make_key_facts``).
+fact) is the coverage that passes: the default-pass-rule hook turns it into
+``mode: threshold`` / ``min_score`` (see ``key_facts_pass_rule``).
 Matching is case-insensitive and whitespace-normalised by default.
 
 Without a case (contract mode) facts come from the ``required`` / ``forbidden``
@@ -35,9 +35,13 @@ class FactsError(ValueError):
     pass
 
 
-class KeyFactsConfigError(Exception):
-    """Contradictory pass settings. Deliberately not a ``ValueError``: runners
-    treat those as "evaluator unavailable" and skip silently."""
+class KeyFactsConfigError(ValueError):
+    """Contradictory pass settings (``threshold`` vs ``mode``/``min_score``).
+
+    A ``ValueError`` so pydantic reports it as a validation error (contract
+    load, ``/v1/proxy``); the pass-rule hook runs outside the factory ``try``
+    in runners, so it is never mistaken for "evaluator unavailable".
+    """
 
 
 def _parse_required(raw: Any) -> list[list[str]]:
@@ -156,37 +160,41 @@ class KeyFactsEvaluator:
 
 
 def make_key_facts(cfg: dict, _llm: Any = None) -> KeyFactsEvaluator:
-    """Factory: build the evaluator and derive its pass rule from ``threshold``.
-
-    Unless ``mode``/``min_score`` were set explicitly on ``cfg``, writes
-    ``mode: threshold`` and ``min_score: <threshold>`` back into ``cfg`` (the
-    dict dataset runs read the pass rule from). Explicit settings win; one
-    that contradicts an explicit ``threshold`` raises ``KeyFactsConfigError``.
-    """
-    threshold_set = "threshold" in cfg
-    threshold = cfg.get("threshold", 1.0)
-    ev = KeyFactsEvaluator(
+    return KeyFactsEvaluator(
         required=cfg.get("required"),
         forbidden=cfg.get("forbidden"),
-        threshold=threshold,
+        threshold=cfg.get("threshold", 1.0),
         case_sensitive=cfg.get("case_sensitive", False),
         normalize_whitespace=cfg.get("normalize_whitespace", True),
         field=cfg.get("field"),
     )
-    mode = cfg.get("mode")
-    min_set = "min_score" in cfg
 
-    def conflict(why: str) -> KeyFactsConfigError:
-        return KeyFactsConfigError(f"{_NAME}: threshold {threshold:g} conflicts with {why}")
 
-    if min_set and threshold_set and abs(cfg["min_score"] - threshold) > 1e-9:
-        raise conflict(f"min_score {cfg['min_score']:g}; set one of them")
+def key_facts_pass_rule(
+    config: dict, mode: str | None, min_score: float | None
+) -> tuple[str, float] | None:
+    """Default pass rule from ``threshold``: ``(mode, min_score)`` or ``None``.
+
+    ``mode`` / ``min_score`` are what the user set (``None`` = not set).
+    Unset: ``mode: threshold`` with ``min_score = threshold`` (default 1.0).
+    Explicit ``binary`` / ``warn`` are kept (``None``); an explicit
+    ``min_score`` wins and implies ``threshold`` mode. A setting that
+    contradicts an explicit ``threshold`` raises ``KeyFactsConfigError``.
+    """
+    threshold_set = "threshold" in config
+    threshold = config.get("threshold", 1.0)
+    if isinstance(threshold, bool) or not isinstance(threshold, (int, float)):
+        return None  # the evaluator factory reports the bad threshold
+    if min_score is not None and threshold_set and abs(min_score - threshold) > 1e-9:
+        raise KeyFactsConfigError(
+            f"{_NAME}: threshold {threshold:g} conflicts with min_score "
+            f"{min_score:g}; set one of them"
+        )
     if mode == "binary" and threshold_set and threshold != 1.0:
-        raise conflict("mode: binary (needs every fact); use mode: threshold or drop mode")
-    if mode == "warn":
-        return ev
-    if mode == "binary":
-        return ev
-    cfg["mode"] = "threshold"
-    cfg.setdefault("min_score", threshold)
-    return ev
+        raise KeyFactsConfigError(
+            f"{_NAME}: threshold {threshold:g} conflicts with mode: binary "
+            "(needs every fact); use mode: threshold or drop mode"
+        )
+    if mode in ("binary", "warn"):
+        return None
+    return "threshold", float(threshold if min_score is None else min_score)

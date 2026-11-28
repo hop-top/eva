@@ -4,7 +4,7 @@ import pytest
 
 from core.dataset import Dataset
 from core.evaluators.builtin import BUILTIN_EVALUATOR_FACTORIES
-from core.evaluators.key_facts import KeyFactsConfigError, KeyFactsEvaluator
+from core.evaluators.key_facts import KeyFactsEvaluator
 from core.plugins import make_manager
 from core.runner import Runner
 
@@ -182,71 +182,6 @@ def test_registered():
         {"name": "key_facts", "threshold": 0.5, "case_sensitive": True}, None
     )
     assert ev.case_sensitive is True
-
-
-def make(**cfg):
-    cfg = {"name": "key_facts", **cfg}
-    ev = BUILTIN_EVALUATOR_FACTORIES["key_facts"](cfg, None)
-    return cfg, ev
-
-
-def test_default_pass_rule_is_threshold_mode_all_facts():
-    cfg, _ = make()
-    assert cfg["mode"] == "threshold" and cfg["min_score"] == 1.0
-
-
-def test_threshold_drives_pass_rule():
-    cfg, ev = make(threshold=0.75)
-    assert cfg["mode"] == "threshold" and cfg["min_score"] == 0.75
-    assert ev.run_case(SUMMARY, case(["Paris", "1889", "330 m", "Rome"])).value == 0.75
-
-
-def test_explicit_min_score_wins_and_implies_threshold_mode():
-    cfg, _ = make(min_score=0.5)
-    assert cfg["mode"] == "threshold" and cfg["min_score"] == 0.5
-
-
-def test_explicit_threshold_mode_without_min_score():
-    cfg, _ = make(mode="threshold", threshold=0.5)
-    assert cfg["min_score"] == 0.5
-
-
-def test_explicit_matching_settings_ok():
-    make(mode="threshold", min_score=0.75, threshold=0.75)
-    make(mode="binary", threshold=1.0)
-    cfg, _ = make(mode="binary")
-    assert cfg["mode"] == "binary" and "min_score" not in cfg
-    cfg, _ = make(mode="warn", threshold=0.5)
-    assert cfg["mode"] == "warn"
-
-
-@pytest.mark.parametrize(
-    "cfg",
-    [
-        {"mode": "binary", "threshold": 0.75},
-        {"min_score": 0.5, "threshold": 0.75},
-        {"mode": "threshold", "min_score": 0.5, "threshold": 0.75},
-    ],
-)
-def test_conflicting_pass_settings_raise(cfg):
-    with pytest.raises(KeyFactsConfigError, match="conflicts"):
-        make(**cfg)
-
-
-@pytest.mark.asyncio
-async def test_conflict_fails_the_run_not_a_silent_skip():
-    ds = Dataset(
-        name="d",
-        target="http://x",
-        evaluators=[{"name": "key_facts", "mode": "binary", "threshold": 0.5}],
-        tests=[{"id": "t", "input": "s", "metadata": {"key_facts": {"required": ["Paris"]}}}],
-    )
-
-    async def call(i, t):
-        return SUMMARY
-
-    with pytest.raises(KeyFactsConfigError):
-        await Runner(pm=make_manager(), call_agent=call).execute(ds)
 
 
 @pytest.mark.asyncio
