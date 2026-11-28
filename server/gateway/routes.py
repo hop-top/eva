@@ -267,10 +267,12 @@ def _persist_invocation(
     run_id: str | None = None,
     event_sink: EventSink | NullEventSink | None = None,
     sampled: bool = True,
-) -> None:
+    source: str = "gateway_proxy",
+) -> str | None:
     """Build Artifact + Invocation + EvaluatorResult rows and persist via _storage.
 
-    No-op when _storage is None.
+    No-op (returns None) when _storage is None; otherwise returns the new
+    invocation_id.
 
     When *sampled* is False the Invocation stub is still written (so counts remain
     accurate) but artifact writes and evaluator-result rows are skipped.
@@ -283,7 +285,7 @@ def _persist_invocation(
       when observability is disabled (NullEventSink is the default).
     """
     if _storage is None:
-        return
+        return None
 
     duration_ms = int((ended_at - started_at).total_seconds() * 1000)
 
@@ -321,7 +323,7 @@ def _persist_invocation(
     invocation = Invocation(
         invocation_id=invocation_id,
         run_id=run_id,
-        source="gateway_proxy",
+        source=source,  # type: ignore[arg-type]
         target=target,
         contract_name=contract_name,
         request_id=request_id,
@@ -355,6 +357,7 @@ def _persist_invocation(
         tool_events = event_sink.drain()
         if tool_events:
             _storage.save_tool_calls(invocation_id, tool_events)
+    return invocation_id
 
 
 def _violation_response(
@@ -459,11 +462,11 @@ async def proxy(req: ProxyRequest) -> Any:
                     retry_result.response_text if retry_result is not None
                     else (exc_retry.last_response if exc_retry else None)
                 )
-                _eval_results = (
-                    retry_result.eval_result.results
-                    if retry_result is not None and retry_result.eval_result
-                    else []
+                _last = (
+                    retry_result.eval_result if retry_result is not None
+                    else (exc_retry.eval_result if exc_retry else None)
                 )
+                _eval_results = _last.results if _last else []
                 _persist_invocation(
                     started_at=started_at,
                     ended_at=ended_at,
@@ -555,6 +558,7 @@ async def contract_invoke(req: InvokeRequest) -> Any:
             return proxy_resp.text
 
         invoke_sampled = _is_sampled()
+        invocation_id: str | None = None
         started_at = datetime.now(timezone.utc)
         retry_result = None
         exc_proxy: ProxyError | None = None
@@ -580,12 +584,12 @@ async def contract_invoke(req: InvokeRequest) -> Any:
                     retry_result.response_text if retry_result is not None
                     else (exc_retry.last_response if exc_retry else None)
                 )
-                _eval_results = (
-                    retry_result.eval_result.results
-                    if retry_result is not None and retry_result.eval_result
-                    else []
+                _last = (
+                    retry_result.eval_result if retry_result is not None
+                    else (exc_retry.eval_result if exc_retry else None)
                 )
-                _persist_invocation(
+                _eval_results = _last.results if _last else []
+                invocation_id = _persist_invocation(
                     started_at=started_at,
                     ended_at=ended_at,
                     request_body=req.body,
@@ -598,6 +602,7 @@ async def contract_invoke(req: InvokeRequest) -> Any:
                     eval_results=_eval_results,
                     event_sink=invoke_sink,
                     sampled=invoke_sampled,
+                    source="contract_invoke",
                 )
 
         if exc_proxy is not None:
@@ -617,7 +622,8 @@ async def contract_invoke(req: InvokeRequest) -> Any:
         except (json.JSONDecodeError, ValueError):
             response_data = retry_result.response_text  # type: ignore[union-attr]
 
-        _capture_usage(response_data, request_id, "agent", contract.provider)
+        if invocation_id is not None:
+            _capture_usage(response_data, invocation_id, "agent", contract.provider)
         return _pass_body(
             retry_result.attempts,  # type: ignore[union-attr]
             response_data,

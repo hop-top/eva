@@ -21,4 +21,4 @@ eva serve --no-auth --host 127.0.0.1 --port 8080 --contracts-dir ./contracts
 - `400` request invalid against `request_schema` (invoke only); `404` unknown contract; `401` missing or bad key; `502` upstream failure (proxy and invoke); `503` registry not initialised.
 - A `skipped` list in the body names judge evaluators that did not run, and why.
 
-Invocations from invoke and proxy land in the same store as dataset runs; read them with `eva invocations show --id <uuid>` after finding the id in `eva failures list`.
+Under `eva serve`, answered `invoke` (`source` `contract_invoke`) and `proxy` (`source` `gateway_proxy`) requests land in the same store as dataset runs: `.eva/state.db` in the directory serve was started from, or the file given with `eva serve --db <path>`. `evaluate` records nothing. Read them with `eva invocations show --id <uuid>` after finding the id in `eva failures list`, adding `--db <path>` if serve used it.

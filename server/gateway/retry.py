@@ -2,7 +2,7 @@
 from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
-from typing import Awaitable, Callable
+from typing import Any, Awaitable, Callable
 from core.models import Contract
 from server.gateway.evaluator import evaluate_response, EvaluationResult
 
@@ -17,13 +17,20 @@ class RetryResult:
 
 
 class RetryExhausted(Exception):
-    def __init__(self, attempts: int, violations: list[dict], last_response: str) -> None:
+    def __init__(
+        self,
+        attempts: int,
+        violations: list[dict],
+        last_response: str,
+        eval_result: Any = None,
+    ) -> None:
         super().__init__(
             f"Contract violated after {attempts} attempt(s): {violations}"
         )
         self.attempts = attempts
         self.violations = violations
         self.last_response = last_response
+        self.eval_result = eval_result  # last attempt's EvalResult, for persistence
 
 
 async def retry_with_hint(
@@ -72,4 +79,5 @@ async def retry_with_hint(
         attempts=max_attempts,
         violations=eval_result.violations if eval_result else [],
         last_response=response_text,
+        eval_result=eval_result,
     )

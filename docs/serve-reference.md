@@ -22,6 +22,7 @@ eva serve [OPTIONS]
 | `--reload` | `bool` | `false` | Enable hot-reload (dev mode; forces `workers=1`) |
 | `--workers` | `int` | `1` | Number of uvicorn worker processes |
 | `--no-auth` | `bool` | `false` | Serve without API-key authentication. Required when no key store (`EVA_REDIS_URL`) is configured; prints a warning at every start |
+| `--db` | `path` | `.eva/state.db` | SQLite file the gateway records invocations in; the same file `eva invocations`, `eva failures` and the other query commands take with `--db` |
 | `--help` | — | — | Show help and exit |
 
 ---
@@ -33,8 +34,8 @@ eva serve [OPTIONS]
 | `EVA_REDIS_URL` | Redis connection URL — the API key store. Required unless `--no-auth` is passed |
 | `EVA_NO_AUTH` | Set by `--no-auth` for worker and reload processes. Internal; do not set it yourself |
 | `EVA_SERVE_CONTRACTS_DIR` | Set by `eva serve` for worker and reload processes (contracts directory). Internal; do not set it yourself |
+| `EVA_SERVE_DB` | Set by `eva serve` for worker and reload processes (absolute path of the state db). Internal; pass `--db` instead |
 | `EVA_CONTRACTS_DIR` | Overrides `--contracts-dir` (not natively wired; set via shell) |
-| `EVA_STORAGE` | SQLite DB path for run storage (default: `sqlite:///.eva/state.db`) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTEL collector endpoint (used by eva-otlp) |
 
 > Note: Eva reads `EVA_REDIS_URL` at import time (`server/auth.py`). Set before
@@ -52,12 +53,33 @@ eva serve [OPTIONS]
 3. Construct `ContractRegistry`.
 4. Scan `--contracts-dir` — load each `*.yaml` file as a `Contract`.
 5. Log: `Loaded N contract(s) from <dir>` (or warning if dir missing).
-6. Single process: call `create_app(registry=registry)` and hand the app to
-   `uvicorn.run(...)`. With `--workers` > 1 or `--reload`, uvicorn needs an import
-   string: it gets `server.app:create_serve_app` (a factory) and each worker or
-   reload process builds its own app, loading contracts from the same directory.
+6. Open the state db (`--db`, default `.eva/state.db`; created with its
+   tables if missing) and log `Recording gateway invocations in <path>`.
+   Done once in the launching process, before any worker starts.
+7. Single process: call `create_app(registry=registry, storage=storage)` and hand
+   the app to `uvicorn.run(...)`. With `--workers` > 1 or `--reload`, uvicorn needs an
+   import string: it gets `server.app:create_serve_app` (a factory) and each worker or
+   reload process builds its own app, loading contracts from the same directory and
+   opening the same db.
 
 > When `--reload` is set, `workers` is forced to `1` regardless of the flag value.
+
+---
+
+## Recording gateway traffic
+
+`POST /v1/proxy` and `POST /v1/contract/invoke` record each answered request
+(pass or violation) in the state db, with `source` `gateway_proxy` and
+`contract_invoke`; `POST /v1/contract/evaluate` records nothing. With
+`--workers`, all workers write to the one file. Read the rows back with
+`eva invocations show --id <id>` and `eva failures list`, adding `--db <path>`
+when `eva serve` was started with `--db`. Tables, fields and sampling:
+[Gateway traffic](observability-data-model.md#gateway-traffic).
+
+```
+eva serve --no-auth --db /var/lib/eva/gateway.db
+eva failures list --db /var/lib/eva/gateway.db
+```
 
 ---
 

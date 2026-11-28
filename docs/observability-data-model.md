@@ -2,7 +2,8 @@
 
 What Eva stores about each evaluated call, and which command writes it.
 All tables live in one SQLite file: `.eva/state.db` by default, or the
-file given with `--db`.
+file given with `--db`. `eva serve` records gateway traffic in the same
+file (see [Gateway traffic](#gateway-traffic)).
 
 Entity diagram: [observability-data-model/entity-relationships-v1.mmd](observability-data-model/entity-relationships-v1.mmd).
 
@@ -13,7 +14,7 @@ Entity diagram: [observability-data-model/entity-relationships-v1.mmd](observabi
 | Layer | Tables | Purpose |
 |---|---|---|
 | Run summary | `RunRecord` | One row per `eva run`: dataset, target, pass/fail, duration, serialized results. |
-| Per-call record | `InvocationRecord`, `EvaluatorResultRecord` | One row per evaluated call, and one row per evaluator score on it. |
+| Per-call record | `InvocationRecord`, `EvaluatorResultRecord` | One row per evaluated call (a dataset case or a gateway request), and one row per evaluator score on it. |
 | Payloads | `ArtifactRecord` | Request, response and tool content, kept out of the invocation row. |
 | Tool trace | `ToolCallRecord` | One row per tool call recorded for an invocation. |
 | Economics | `UsageRecordRecord` | Token counts and (when present) estimated cost per model call. |
@@ -54,22 +55,53 @@ empty, so cost figures in `eva usage report` and `eva compare` are
 
 ---
 
+## Gateway traffic
+
+`eva serve` opens the state db when it starts, once per process, and the
+gateway routes record into it: `.eva/state.db` in the directory `eva serve`
+is started from, or the file given with `eva serve --db <path>`. It is the
+file `eva invocations`, `eva failures` and the other query commands read, so
+point them at the same file (`--db <path>`) when you moved it. With
+`--workers`, every worker writes to that one file. A gateway built in
+code with `create_app()` and no `storage` argument records nothing.
+
+| Route | Recorded | `source` | `contract_name` |
+|---|---|---|---|
+| `POST /v1/proxy` | Pass (`200`) and violation (`422`). Not recorded: invalid inline evaluator (`422`), upstream error (`502`). | `gateway_proxy` | `inline` |
+| `POST /v1/contract/invoke` | Pass (`200`) and violation (`422`). Not recorded: request invalid (`400`), unknown contract (`404`), upstream error (`502`). | `contract_invoke` | the contract's name |
+| `POST /v1/contract/evaluate` | Never. | | |
+
+Per recorded request: one `InvocationRecord` (`status` `pass` or `fail`,
+`request_id` and `trace_id` as returned in the response body, `run_id`
+empty); a `request` and a `response` artifact; one `EvaluatorResultRecord`
+per evaluator that ran, from the last attempt; and one `ToolCallRecord` per
+tool call the upstream agent emitted through the event sink. On
+`/v1/contract/invoke`, when the agent's reply is JSON with a `usage` object,
+one `UsageRecordRecord` (`scope = agent`, with an estimated cost where the
+model has a known price) points at the invocation through `invocation_id`.
+
+`observability.sample_rate` in `eva.yaml` (default `1.0`) sets the fraction
+of requests that get the artifacts, evaluator results and tool calls above.
+Every other recorded request still gets its `InvocationRecord`, so counts
+stay accurate; usage rows are written regardless of sampling.
+
+---
+
 ## Entity reference
 
 ### InvocationRecord
 
-`eva run` writes these rows. `eva serve` does not record gateway traffic
-yet: no gateway route writes to the store when started from the CLI.
+`eva run` and `eva serve` (gateway routes) write these rows.
 
 | Field | Type | Notes |
 |---|---|---|
 | `invocation_id` | string (UUID) | Primary key. |
 | `run_id` | string or null | Foreign key to `RunRecord`. |
-| `source` | string | `offline_run` (written by `eva run`); `gateway_proxy` and `contract_invoke` are reserved for gateway traffic. |
+| `source` | string | `offline_run` (written by `eva run`); `gateway_proxy` (`/v1/proxy`) and `contract_invoke` (`/v1/contract/invoke`) are written by `eva serve`. |
 | `dataset`, `test_id` | string or null | Dataset name and case id. |
 | `target` | string | Target URL or id. |
 | `provider`, `model`, `model_version` | string or null | Chat targets fill `provider` and `model`. |
-| `contract_name` | string or null | Contract in effect, for gateway traffic. |
+| `contract_name` | string or null | Contract in effect, for gateway traffic (`inline` for `/v1/proxy`). |
 | `request_id`, `trace_id` | string or null | Request and OTEL trace linkage. |
 | `started_at`, `duration_ms` | datetime, int | Wall time of the call and its evaluation. |
 | `status` | string | `pass`, `fail`, `upstream_error`, `request_invalid`. |
@@ -124,7 +156,7 @@ calls are logged, not executed, so they have no result. Nothing writes
 |---|---|---|
 | `usage_id` | string (UUID) | Primary key. |
 | `invocation_id` | string | Foreign key to `InvocationRecord`. |
-| `scope` | string | `agent` is written by `eva run`. `evaluator_judge` and `tool` are reserved. |
+| `scope` | string | `agent` is written by `eva run` and by `/v1/contract/invoke`. `evaluator_judge` and `tool` are reserved. |
 | `provider`, `model` | string | |
 | `prompt_tokens`, `completion_tokens`, `total_tokens` | int or null | As the provider reported them. |
 | `estimated_cost_usd` | float or null | Computed by `core/costing.py` where a writer calls it; otherwise null. |
@@ -170,8 +202,8 @@ AnnotationRecord (*) --------- (0..1) ArtifactRecord   [corrected output]
 ContractVersionRecord (*) ---- (0..1) ArtifactRecord   [contract YAML]
 ```
 
-`run_id` on `InvocationRecord` is nullable: a call that did not come from
-`eva run` has no parent run.
+`run_id` on `InvocationRecord` is nullable: gateway traffic has no parent
+run.
 
 ---
 

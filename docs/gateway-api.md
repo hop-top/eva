@@ -58,6 +58,16 @@ Generic errors (FastAPI / upstream):
 
 ---
 
+## Recording
+
+Under `eva serve`, `/v1/proxy` and `/v1/contract/invoke` record each answered
+request (`200` pass, `422` violation) in the state db (`.eva/state.db`, or the
+file given with `eva serve --db`); `/v1/contract/evaluate` records nothing.
+`request_id` in the response body is the `request_id` on the stored
+invocation. Details: [Gateway traffic](observability-data-model.md#gateway-traffic).
+
+---
+
 ## Endpoints
 
 ### `POST /v1/proxy`
