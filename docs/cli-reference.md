@@ -42,6 +42,11 @@ Loads a dataset of test cases and calls a live agent for each.
 | `--concurrency` | Optional. Number of concurrent test executions. Default: `1`. |
 | `--no-tui` | Optional. Plain-text output for CI. |
 | `--since` | Optional. `YYYY-MM-DD`. Also report accuracy on cases whose `metadata.added` is on or after the date. Invalid date: exit `2`. |
+| `--missing` | Optional. Run only the cases the target has no stored result for (see [Running only missing cases](#running-only-missing-cases)). |
+| `--category NAME` | With `--missing`. Only cases whose `metadata.category` equals `NAME`. |
+| `--limit N` | With `--missing`. At most `N` cases: the first `N` missing ones, in dataset order. `N` below `1`: exit `2`. |
+| `--dry-run` | Optional. Print the case ids that would run and exit `0`: no target call, nothing stored. |
+| `--format` | Optional. `text` (default) or `json`. |
 
 ```bash
 eva run --dataset evals/my_suite.yaml --target http://localhost:8000/chat
@@ -55,6 +60,55 @@ Chat target flags merge over the dataset's `target:` mapping (flags win);
 they cannot be combined with `--target` (exit `2`). See
 [dataset-reference.md](dataset-reference.md). Each run prints its
 `Run: <id>` for `eva runs show --run-id <id>` / `eva compare`.
+
+### Running only missing cases
+
+`eva run --dataset D --missing` runs only the cases the target has no
+stored result for (per-case results, see
+[`eva results`](#eva-results-list--export--import)). The target is identified
+as in [dataset-reference.md](dataset-reference.md#target-identity) (`--target-id`
+included). A case counts as having a result when a record exists for the case
+id at the case's **current** content hash, passed or failed, so:
+
+- a fresh target runs every case; a second run runs none; after cases are
+  appended to an append-only dataset only the new ones run;
+- a case edited since its result (a non-append-only dataset) is missing again;
+- superseded cases of an append-only dataset never run;
+- a case whose target call failed (upstream error) and a case no evaluator
+  applied to were never recorded, so they run again every time.
+
+`--category NAME` and `--limit N` narrow the selection and need `--missing`.
+Cases are selected before any target call. A run stores its results as usual,
+so the next `--missing` run skips them.
+
+```bash
+eva run --dataset bench/ --provider openai --base-url http://localhost:12000/v1 \
+  --model my-model --missing --category math --limit 20
+eva run --dataset bench/ --provider openai --model my-model --missing --dry-run
+```
+
+With nothing missing, `eva run --missing` exits `0` and prints
+`Nothing to run: <target id> has a result for every case of <dataset>.`
+`--dry-run` prints `Would run N of S cases of <dataset> for <target id>:` and
+the case ids, one per line.
+
+With `--format json`, `--dry-run` and a run with nothing to do write one
+object instead of a run:
+
+```json
+{"dataset": "bench", "target_id": "openai:my-model", "dry_run": true,
+ "missing_only": true, "scored": 120, "missing": 3, "selected": ["c118", "c119", "c120"]}
+```
+
+`scored` is the number of cases the dataset runs (superseded ones excluded);
+`missing` (only with `--missing`) the number of those without a result, after
+`--category`; `selected` the ids that would run, after `--limit`;
+`missing_only` whether `--missing` was given. `--dry-run` without `--missing`
+selects every scored case. A run that does execute prints the run as usual.
+
+`--missing`, `--category`, `--limit` and `--dry-run` apply to dataset mode;
+with `--contract`/`--input` they exit `2`. `--category` and `--limit` without
+`--missing` exit `2`.
 
 ### Per-category figures
 
@@ -103,6 +157,8 @@ eva run --contract contracts/my.yaml --input artifacts/response.txt \
 - `2` also, in dataset mode: an evaluator's configuration is invalid; the message
   names the evaluator and the problem and no target call is made (see
   [evaluators-reference.md](evaluators-reference.md#invalid-evaluator-configuration)).
+- `2` also: `--category`/`--limit` without `--missing`, `--limit` below `1`, or
+  `--missing`/`--dry-run`/`--category`/`--limit` with `--contract`.
 - `3`: Dataset mode only: the dataset is append-only and its integrity check
   failed (see [`eva dataset`](#eva-dataset)); nothing ran.
 

@@ -1,4 +1,5 @@
 # cli/main.py
+import json
 import sys
 from typing import Any
 from importlib.metadata import version as _pkg_version, PackageNotFoundError
@@ -188,6 +189,25 @@ def run(
         help="Dataset mode: also report accuracy on cases whose metadata.added "
         "is on/after this ISO date (YYYY-MM-DD).",
     ),
+    missing: bool = typer.Option(
+        False, "--missing",
+        help="Dataset mode: run only the cases this target (see --target-id) has no "
+        "stored result for at the case's current content hash. Nothing missing: "
+        "exit 0.",
+    ),
+    category: str | None = typer.Option(
+        None, "--category",
+        help="With --missing: only cases whose metadata.category equals NAME.",
+    ),
+    limit: int | None = typer.Option(
+        None, "--limit",
+        help="With --missing: run at most N cases (the first N missing, in dataset order).",
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run",
+        help="Dataset mode: list the case ids that would run; no target call, "
+        "nothing stored.",
+    ),
 ):
     """Run evaluations.
 
@@ -237,6 +257,12 @@ def run(
         if since is not None:
             console.print("[red]Error:[/red] --since applies to dataset mode only")
             raise typer.Exit(2)
+        if missing or dry_run or category is not None or limit is not None:
+            console.print(
+                "[red]Error:[/red] --missing/--category/--limit/--dry-run "
+                "apply to dataset mode only"
+            )
+            raise typer.Exit(2)
         from cli.run_contract import run_contract_cli
 
         chosen_fmt = fmt or ("json" if not sys.stdout.isatty() else "text")
@@ -273,6 +299,13 @@ def run(
 
     if fmt is not None and fmt not in ("json", "text"):
         console.print("[red]Error:[/red] --format must be 'json' or 'text'")
+        raise typer.Exit(2)
+
+    if (category is not None or limit is not None) and not missing:
+        console.print("[red]Error:[/red] --category and --limit require --missing")
+        raise typer.Exit(2)
+    if limit is not None and limit < 1:
+        console.print(f"[red]Error:[/red] --limit must be at least 1, got {limit}")
         raise typer.Exit(2)
 
     since_date = None
@@ -315,6 +348,30 @@ def run(
             for _p in _res.problems:
                 typer.echo(f"problem: {_p.message}", err=True)
             raise typer.Exit(3)
+    storage = None
+    if missing or dry_run:
+        from core.missing import MissingSelection, select_missing
+
+        if missing:
+            storage = SqliteStorage()
+            try:
+                sel = select_missing(ds, storage, category, limit)
+            except ValueError as e:
+                console.print(f"[red]Error:[/red] {escape(str(e))}")
+                raise typer.Exit(2)
+        else:
+            cases = ds.scored_tests()
+            sel = MissingSelection(len(cases), len(cases), cases)
+        if dry_run or not sel.selected:
+            _print_selection(ds, sel, missing, category, dry_run, fmt)
+            raise typer.Exit(0)
+        if missing:
+            typer.echo(
+                f"Running {len(sel.selected)} of {sel.scored} cases of {ds.name} "
+                f"for {ds.result_target_id} (no stored result)",
+                err=True,
+            )
+            ds = ds.model_copy(update={"tests": sel.selected})
     pm = build_manager(plugin_file=Path("plugins.py"))
     # Judge adapter: EVA_JUDGE_MODEL env / eva.yaml judge.model. None is fine —
     # judge-based builtin refs then skip with a reason (surfaced below).
@@ -344,7 +401,8 @@ def run(
                 resp = await client.post(target_url, json={"input": input})
                 return resp.text
 
-    storage = SqliteStorage()
+    if storage is None:
+        storage = SqliteStorage()
     runner = Runner(
         pm=pm,
         call_agent=call_agent,
@@ -385,6 +443,31 @@ def run(
     storage.save_run(eva_run)
 
     raise typer.Exit(0 if eva_run.passed else 1)
+
+
+def _print_selection(ds, sel, missing_only, category, dry_run, fmt) -> None:
+    """Report the cases `eva run` would run (--dry-run) or that nothing is left to run."""
+    ids = sel.ids
+    tid = ds.result_target_id
+    if fmt == "json":
+        out = {
+            "dataset": ds.name,
+            "target_id": tid,
+            "dry_run": dry_run,
+            "missing_only": missing_only,
+            "scored": sel.scored,
+        }
+        if missing_only:
+            out["missing"] = sel.missing
+        out["selected"] = ids
+        print(json.dumps(out))
+    elif not ids:
+        scope = f"case in category {category!r}" if category is not None else "case"
+        print(f"Nothing to run: {tid} has a result for every {scope} of {ds.name}.")
+    else:
+        print(f"Would run {len(ids)} of {sel.scored} cases of {ds.name} for {tid}:")
+        for i in ids:
+            print(f"  {i}")
 
 
 def _print_plain(eva_run) -> None:
