@@ -382,9 +382,8 @@ unless `case_sensitive: false` and/or `normalize_whitespace: true`.
 ### Malformed arguments
 
 A call with `raw_args` set (arguments were not a valid JSON object) never
-matches an expected call that has a required argument; the reason says the
-arguments were not valid JSON and shows the raw string. Against an expected
-call whose arguments are all optional it is compared with `args == {}`.
+matches any expected call, including one whose arguments are all optional;
+the reason says the arguments were not valid JSON and shows the raw string.
 
 ### Applicability
 

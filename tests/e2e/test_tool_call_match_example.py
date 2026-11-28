@@ -29,7 +29,7 @@ def reply(prompt):
         return {"tool_calls": [{"name": "get_weather", "arguments": {"city": "Paris"}}]}
     if "Add 2 and 3" in prompt:
         return {"tool_calls": [{"name": "add", "arguments": {"a": 2.0, "b": 3}}]}
-    # set-timer: malformed arguments, required `minutes` cannot match
+    # set-timer: malformed arguments never match
     return {"tool_calls": [{"name": "set_timer", "arguments": '{"minutes": '}]}
 
 

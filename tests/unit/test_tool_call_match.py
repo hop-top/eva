@@ -316,9 +316,11 @@ def test_malformed_arguments_in_parallel_mode():
     assert s.value == 0.0 and "not valid JSON" in s.reason
 
 
-def test_malformed_arguments_still_match_an_all_optional_call():
+def test_malformed_arguments_never_match_even_all_optional_call():
     events = [ev("ping", {}, raw="oops")]
-    assert check(events, [{"ping": {"v": ["1", ""]}}]).value == 1.0
+    s = check(events, [{"ping": {"v": ["1", ""]}}])
+    assert s.value == 0.0 and "not valid JSON" in s.reason
+    assert check(events, [{"ping": {}}]).value == 0.0
 
 
 def test_valid_empty_object_is_just_missing_arguments():
