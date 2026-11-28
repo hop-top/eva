@@ -75,6 +75,14 @@ The same calls are stored with the invocation: one tool-call row per call
 `raw_args` exposed on each entry of `tool_calls` in
 `core.query.get_invocation_detail`.
 
+Stored rows also carry `status` (`error` when the event has an `error`,
+else `success`), `duration_ms`, `trace_id` and `span_id`, and the result,
+when the event has one, as a `tool_result` artifact. `eva invocations show
+--id <id>` prints them in its Tool Calls table; see
+[observability-data-model.md](observability-data-model.md#toolcallrecord).
+Events emitted from a plugin hook are logged the same way; see
+[Emitting tool events](plugin-authoring-guide.md#emitting-tool-events).
+
 ---
 
 ## `contains`

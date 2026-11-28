@@ -75,6 +75,33 @@ Once installed via `pip`, Eva will automatically discover and load this plugin.
 
 ---
 
+## Emitting tool events
+
+Every case gets its own `EventSink` in `context["event_sink"]`. A hook
+implementation (usually `before_eval`) can record the tool calls an agent
+made; Eva has no other way to see calls made inside a remote agent. Chat
+targets need no plugin: their tool calls are logged automatically (see
+[Tool-call log](evaluators-reference.md#tool-call-log)).
+
+```python
+class RecordTools(EvaPlugin):
+    @EvaSpec.hook_impl
+    def before_eval(self, test_id: str, context: dict) -> None:
+        sink = context["event_sink"]
+        sink.emit_tool_call("search", {"q": "refund"}, result={"hits": 2}, duration_ms=7)
+        sink.emit_tool_call("lookup", {"id": 1}, error="not found")
+```
+
+`emit_tool_call(tool_name, args, *, result=None, error=None, duration_ms=None,
+trace_id=None, span_id=None, step_index=None, started_at=None, raw_args=None)`
+stores and returns a `ToolCallEvent` (`core/events.py`). `step_index`
+defaults to the call's position. Evaluators read the events from
+`context["tool_events"]`; after the case, Eva stores one tool-call row per
+event with the invocation. `NullEventSink` is the no-op sink used when no
+per-case sink exists; its `emit_tool_call` discards the call.
+
+---
+
 ## Best Practices for Plugin Authors
 
 1.  **Inherit from `EvaPlugin`**: This ensures your class is correctly identified by the loader.
