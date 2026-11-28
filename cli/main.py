@@ -718,5 +718,59 @@ def drift_report(
     console.print(table)
 
 
+data_app = typer.Typer(help="Evaluator data commands.")
+app.add_typer(data_app, name="data")
+
+
+@data_app.command("fetch")
+def data_fetch(
+    directory: str | None = typer.Option(
+        None, "--dir",
+        help="Target directory (default: first NLTK_DATA entry, else "
+        "$XDG_DATA_HOME/eva/nltk_data).",
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Show what would be fetched; no network, no writes."
+    ),
+    fmt: str | None = typer.Option(
+        None, "--format", help="Output: 'text' (default in TTY) or 'json' (default otherwise)."
+    ),
+) -> None:
+    """Fetch the nltk data the ifeval_check evaluator needs (one time).
+
+    Exit codes: 0 ok (fetched or already present), 1 a download failed,
+    2 invalid flag, 3 the 'ifeval' extra (nltk) is not installed.
+    """
+    import json
+
+    chosen = fmt or ("json" if not sys.stdout.isatty() else "text")
+    if chosen not in ("json", "text"):
+        console.print("[red]Error:[/red] --format must be 'json' or 'text'")
+        raise typer.Exit(2)
+
+    from core import nltk_data
+
+    if not dry_run:
+        try:
+            import nltk  # noqa: F401
+        except ImportError:
+            print(
+                'Error: nltk not installed; run: pip install "hop-top-eva[ifeval]"',
+                file=sys.stderr,
+            )
+            raise typer.Exit(3)
+
+    result = nltk_data.fetch(directory=directory, dry_run=dry_run)
+    if chosen == "json":
+        print(json.dumps(result))
+    else:
+        for r in result["resources"]:
+            print(f"{r['status']:<12} {r['id']}")
+        print(f"dir: {result['dir']}")
+    if not result["ok"]:
+        print("Error: some downloads failed", file=sys.stderr)
+        raise typer.Exit(1)
+
+
 if __name__ == "__main__":
     app()

@@ -119,6 +119,38 @@ eva contract validate contracts/refund_policy.yaml
 
 ---
 
+## `eva data fetch`
+
+Fetch the nltk data the `ifeval_check` evaluator needs (`punkt_tab`, `stopwords`,
+`averaged_perceptron_tagger_eng`). Run once per machine; evaluation itself never downloads.
+Needs the `ifeval` extra (`pip install "hop-top-eva[ifeval]"`). Resources already present in the
+target directory are not fetched again.
+
+| Flag | Description |
+|---|---|
+| `--dir` | Optional. Target directory. Default: the first `NLTK_DATA` entry if set, else `$XDG_DATA_HOME/eva/nltk_data` (`~/.local/share/eva/nltk_data`). |
+| `--dry-run` | Optional. List what would be fetched; no network, no writes. |
+| `--format` | Optional. `text` (default in TTY) or `json` (default otherwise). |
+
+`ifeval_check` looks for the data in every `NLTK_DATA` entry, nltk's own search path and the
+default directory above. A custom `--dir` must be added to `NLTK_DATA` to be found.
+
+```bash
+eva data fetch --dry-run --format json
+eva data fetch
+```
+
+JSON output: `{"dir": "...", "dry_run": false, "ok": true, "resources": [{"id": "punkt_tab", "status": "fetched"}]}`;
+`status` is `present`, `would_fetch`, `fetched` or `failed`.
+
+### Exit Codes:
+- `0`: All resources fetched or already present (also for `--dry-run`).
+- `1`: A download failed.
+- `2`: Invalid flag value (`--format`).
+- `3`: The `ifeval` extra (nltk) is not installed.
+
+---
+
 ## Global Configuration
 
 Eva can be configured using environment variables in your `.env` file or exported to your shell.

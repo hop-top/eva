@@ -16,6 +16,7 @@ from core.evaluators.content_quality import (
 from core.evaluators.equals import EqualsEvaluator
 from core.evaluators.forbidden_phrases import ForbiddenPhrasesEvaluator
 from core.evaluators.geval import GEvalEvaluator
+from core.evaluators.ifeval_check import IfevalCheckEvaluator
 from core.evaluators.json_path import JsonPathEvaluator
 from core.evaluators.json_schema_valid import JsonSchemaEvaluator
 from core.evaluators.language import LanguageEvaluator
@@ -112,6 +113,7 @@ EVALUATOR_REGISTRY = {
     "code_test_passes": CodeTestPassesEvaluator,
     "code_tests": CodeTestsEvaluator,
     "exact_match": ExactMatchEvaluator,
+    "ifeval_check": IfevalCheckEvaluator,
     "final_answer": FinalAnswerEvaluator,
     "json_path": JsonPathEvaluator,
     "markdown_structure": MarkdownStructureEvaluator,
@@ -167,6 +169,7 @@ __all__ = [
     "CodeTestsEvaluator",
     "ExactMatchEvaluator",
     "FinalAnswerEvaluator",
+    "IfevalCheckEvaluator",
     "JsonPathEvaluator",
     "MarkdownStructureEvaluator",
     "SentenceParagraphCountEvaluator",
