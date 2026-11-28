@@ -379,6 +379,13 @@ usage record per chat call to `.eva/state.db`:
 
 Cost is blank for local models (no pricing).
 
+To compare two targets whose results span many runs, use
+`eva results compare --dataset D --left-target A --right-target B`: it counts
+only the cases both targets answered at the same case hash, per category, and
+lists the cases only one side passed
+([cli-reference.md](cli-reference.md#eva-results-compare)). Pass
+`--dataset-file` for categories and to drop superseded cases.
+
 ## Security
 
 `code_tests` executes model output in a contained subprocess (throwaway
