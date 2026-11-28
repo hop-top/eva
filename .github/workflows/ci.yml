@@ -8,6 +8,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      NLTK_DATA: ${{ runner.temp }}/nltk_data
     strategy:
       matrix:
         python-version: ['3.11', '3.12']
@@ -24,7 +26,10 @@ jobs:
         uses: astral-sh/setup-uv@v4
 
       - name: Install
-        run: uv pip install --system -e ".[dev,server]"
+        run: uv pip install --system -e ".[dev,server,ifeval]"
+
+      - name: Fetch nltk data for ifeval_check
+        run: eva data fetch --dir "$NLTK_DATA"
 
       - name: Test
         # tests/plugins/ require optional plugin packages (eva-a2a, eva-mcp,
