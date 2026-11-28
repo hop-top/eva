@@ -36,6 +36,7 @@ All repos share the same parent directory (`../` from this repo):
 
 Hosted offering: `eva.hop.top` (subdomain of `hop.top`)
 Business model via `eva-ee`: licensing + hosting (multi-tenancy, shared/private instances).
+Agent skill for operating the CLI: `cli/skills/eva-cli/` (single source; served by `eva skill`). Edit it there; `tests/unit/test_skill_docs.py` checks it against the CLI.
 Version is always read from package metadata — never hardcoded. See `server/app.py` for the pattern.
 
 ---

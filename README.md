@@ -28,6 +28,41 @@ uv add hop-top-eva
 uv add hop-top-eva[server]
 ```
 
+## Agent skill
+
+The package ships a skill that tells coding agents when and how to use `eva`. It
+matches the installed version: nothing is installed until you ask.
+
+```sh
+eva skill show                  # print SKILL.md
+eva skill show rest-api         # print a reference (rest-api, contract-yaml)
+eva skill install               # copy to ~/.claude/skills/eva-cli
+eva skill install --dir <path> --dry-run   # preview into another directory
+```
+
+`install` writes a manifest (`.skill-install.json`) with the eva version and a hash
+per file. Re-running it after an upgrade replaces the copy; it refuses to overwrite
+a copy you edited, or files it did not install, unless you pass `--force`.
+
+Other harnesses read the same text through `eva skill show`. Add one line to the
+file the harness loads:
+
+- Codex and other `AGENTS.md` readers, in `AGENTS.md`:
+
+  ```md
+  Before using the `eva` CLI, run `eva skill show`. References: `eva skill show <name>`.
+  ```
+
+- Cursor, in `.cursor/rules/eva.mdc`:
+
+  ```md
+  ---
+  description: Use when gating agent output against contracts with the eva CLI
+  alwaysApply: false
+  ---
+  Before using the `eva` CLI, run `eva skill show`. References: `eva skill show <name>`.
+  ```
+
 ## Development
 
 Working on eva itself (not just consuming it):
