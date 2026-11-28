@@ -6,6 +6,8 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
+from cli.skill import skill_app
+
 try:
     _VERSION = _pkg_version("hop-top-eva")
 except PackageNotFoundError:
@@ -13,6 +15,7 @@ except PackageNotFoundError:
 
 app = typer.Typer()
 console = Console()
+app.add_typer(skill_app, name="skill")
 
 
 def _version_callback(value: bool):
