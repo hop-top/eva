@@ -51,9 +51,18 @@ def test_hash_independent_of_other_cases():
     ("id", "b"), ("input", "other"), ("expected_output", "other"),
     ("retrieval_context", "ctx"), ("planned_steps", ["s"]),
     ("tests", "assert 1"), ("supersedes", "z"),
+    ("tools", [{"type": "function", "function": {"name": "f"}}]),
+    ("stdio", [{"stdin": "1", "expected_stdout": "2"}]),
 ])
 def test_hash_covers_each_content_field(field, value):
     assert case_hash(case("a", **{field: value})) != case_hash(case("a"))
+
+
+def test_hash_covers_tool_choice():
+    tools = [{"type": "function", "function": {"name": "f"}}]
+    assert case_hash(case("a", tools=tools, tool_choice="required")) != case_hash(
+        case("a", tools=tools)
+    )
 
 
 def test_hash_ignores_metadata_and_unset_fields():

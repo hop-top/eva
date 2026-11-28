@@ -67,7 +67,8 @@ pool/
 **Case hash.** `core.dataset.case_hash(case)` is the sha256 (hex) of the
 canonical JSON of the case's content fields: `id`, `input`,
 `expected_output`, `retrieval_context`, `planned_steps`, `tests` (a list is
-joined with newlines, so it equals the string form) and `supersedes`.
+joined with newlines, so it equals the string form), `supersedes`, `tools`,
+`tool_choice` and `stdio`.
 Unset fields are omitted. Keys are sorted, separators compact, text UTF-8
 without ASCII escaping. The hash depends on that case alone, so adding
 other cases never changes it. `metadata` is **not** hashed: provenance can
