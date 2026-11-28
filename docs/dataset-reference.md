@@ -341,6 +341,11 @@ failed (they carry the `target` pseudo-evaluator result and an
 A case passes when every evaluator that applied to it passed; `score` is the
 mean of their scores.
 
+`eva run --missing` uses these records to run only the cases a target has no
+record for at the current case hash, so a benchmark that only grows costs one
+call per model per new case
+([cli-reference.md](cli-reference.md#running-only-missing-cases)).
+
 ```json
 {"v": 1, "dataset": "my_suite", "target_id": "openai:my-model",
  "case": "code-add", "case_hash": "sha256:9f2c...", "passed": true,
