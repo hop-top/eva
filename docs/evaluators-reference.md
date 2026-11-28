@@ -327,11 +327,13 @@ What is **not** contained:
 | `test_code` | `string` | No | Shared harness appended after each case's tests. |
 | `memory_mb` | `integer` | No | Resident-memory cap for the run, default `512`. |
 | `max_file_mb` | `integer` | No | Largest file the program may write (including stdout/stderr), default `16`. |
+| `partial` | `boolean` | No | stdin/stdout mode only. Default `false` (all-or-nothing); `true` scores `passed/total`. |
 
 ### Test-case fields:
 | Field | Type | Description |
 |---|---|---|
 | `tests` | `string` or `list[string]` | Test code (e.g. `assert` lines), joined by newlines, appended to the extracted code. A case with no `tests` (and no `test_code`) is not applicable: no result recorded. |
+| `stdio` | `list[{stdin, expected_stdout}]` | stdin/stdout mode (below). Do not combine with `tests`: a case with both scores `0.0`. |
 
 ```yaml
 evaluators:
@@ -343,6 +345,31 @@ tests:
     tests: |
       assert add(1, 2) == 3
       assert add(-1, 1) == 0
+```
+
+#### stdin/stdout mode
+
+A case with `stdio` runs the extracted program once per pair, with `stdin` as its standard
+input, and compares its standard output with `expected_stdout`. Each run has a fresh temp dir
+and its own `timeout` (so the worst case is pairs x `timeout`). Comparison ignores trailing
+whitespace on every line and at the end of the output (`\r\n` counts as `\n`); leading and
+inner whitespace and blank lines between text are significant. Config `test_code` is not used
+in this mode.
+
+Score is `1.0` only if every pair passes, else `0.0` (or `passed/total` with `partial: true`).
+The reason always carries the count: `passed 2/3; test 3: wrong output (expected '8', got
+'7')`. Failures name the pair and say `wrong output`, `runtime error (exit code N: <stderr
+tail>)`, `execution timeout after Ns`, or a limit from Isolation; at most three are listed. The
+same isolation applies. A pair with no `expected_stdout` scores `0.0` with a reason; `stdin`
+defaults to empty (immediate EOF).
+
+```yaml
+tests:
+  - id: sum
+    input: "Read integers from stdin and print their sum."
+    stdio:
+      - {stdin: "1 2 3\n", expected_stdout: "6\n"}
+      - {stdin: "", expected_stdout: "0\n"}
 ```
 
 Related: `code_block_runs` only **parses** blocks (no execution); `code_test_passes` executes the

@@ -18,12 +18,14 @@ tests:
     expected_output: "6"    # optional; read by exact_match / final_answer
     tests: |                # optional; read by code_tests (string or list)
       assert add(1, 2) == 3
+    stdio:                  # optional; code_tests stdin/stdout mode (not with tests)
+      - {stdin: "1 2\n", expected_stdout: "3\n"}
     retrieval_context: ...  # optional; RAG judges
     planned_steps: [...]    # optional; plan judges
     metadata: {}            # optional; free-form
 ```
 
-An evaluator that needs a case field (`code_tests` -> `tests`;
+An evaluator that needs a case field (`code_tests` -> `tests` or `stdio`;
 `exact_match`/`final_answer` -> `expected_output`) is **skipped** for cases
 without it, so one dataset can mix code and reasoning cases. A case that
 no evaluator applied to is listed under `skipped` (never fails the run).
