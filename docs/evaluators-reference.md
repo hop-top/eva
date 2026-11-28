@@ -277,6 +277,59 @@ prompt to end with `Final answer: <value>`.
 
 ---
 
+## `key_facts`
+
+Per-case fact coverage, no judge model. Each case lists the facts a good response must state
+(each fact = a list of accepted variants) and, optionally, strings that must not appear.
+Built for summaries and Q&A over a fixed source.
+
+Score = facts found / total facts. A fact is found when **any** of its variants occurs in the
+response (substring match). Any forbidden string present forces `0.0`. The reason names every
+missing fact (variants joined by `|`) and any forbidden hit. Matching is case-insensitive and
+whitespace-normalised by default. Reasoning (`<think>...</think>`) is ignored.
+
+### Configuration Properties:
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `threshold` | `number` | No | Coverage in `(0, 1]` that passes. Default `1.0` (every fact). At or above it the score is `1.0`; below it, the raw coverage. A forbidden hit is `0.0` regardless. |
+| `case_sensitive` | `boolean` | No | Default `false`. |
+| `normalize_whitespace` | `boolean` | No | Default `true`: runs of whitespace (newlines, tabs) count as one space. |
+| `field` | `string` | No | Top-level field of a JSON object response to search instead of the whole response. Same rules as `contains`. |
+| `required` | `list` | No | Fallback facts when a case carries none (same shape as the case). |
+| `forbidden` | `list` | No | Fallback forbidden strings when a case carries none. |
+
+**Dataset-case evaluator:** reads `metadata.key_facts` from the case (shape in
+[dataset-reference.md](dataset-reference.md#key-facts)). A case with neither case facts nor
+`required`/`forbidden` config is not applicable: no result is recorded for it.
+
+**Contract mode** (`eva run --contract`): there is no case, so the evaluator uses the
+`required`/`forbidden` config; with neither it scores `0.0` (`no facts`), like `code_tests` and
+`exact_match`.
+
+```yaml
+evaluators:
+  - name: key_facts
+    mode: binary
+    threshold: 0.75          # pass with 3 of 4 facts
+tests:
+  - id: eiffel-summary
+    input: "Summarize in two sentences: <source text about the Eiffel Tower>"
+    metadata:
+      key_facts:
+        required:
+          - "Paris"
+          - ["1889", "eighteen eighty-nine"]
+          - ["330 m", "330 metres", "330 meters"]
+          - ["Gustave Eiffel", "Eiffel company"]
+        forbidden: ["Berlin", "1900"]
+```
+
+A response "The Eiffel Tower in Paris opened in 1889 and stands 330 metres tall." covers 3 of 4
+facts: score `1.0` at `threshold: 0.75`, `0.75` at the default threshold (reason:
+`missing 1/4 facts: 'Gustave Eiffel' | 'Eiffel company'`).
+
+---
+
 ## `code_tests`
 
 > [!CAUTION]

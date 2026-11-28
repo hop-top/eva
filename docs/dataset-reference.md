@@ -102,6 +102,27 @@ missing or invalid provenance (`provenance`) and a bad `supersedes`
 without running anything. See
 [cli-reference.md](cli-reference.md#eva-dataset).
 
+## Key facts
+
+The `key_facts` evaluator reads `metadata.key_facts` from each case:
+
+```yaml
+tests:
+  - id: eiffel-summary
+    input: "Summarize: ..."
+    metadata:
+      key_facts:
+        required:                     # each item is one fact
+          - "Paris"                   # a string = a single accepted variant
+          - ["1889", "eighteen eighty-nine"]   # a list = variants, any counts
+        forbidden: ["Berlin"]         # optional; any hit scores 0
+```
+
+`required` items are non-empty strings or non-empty lists of strings; `forbidden` is a list of
+strings. Malformed facts score `0.0` with an `invalid facts` reason. A case without
+`metadata.key_facts` falls back to the evaluator's `required`/`forbidden` config, or is skipped
+if that is empty. See [evaluators-reference.md](evaluators-reference.md#key_facts).
+
 ## Targets
 
 ### URL target (unchanged)
