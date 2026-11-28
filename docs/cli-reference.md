@@ -186,7 +186,7 @@ entries.
 
 ---
 
-## `eva results list` / `export` / `import`
+## `eva results list` / `export` / `import` / `compare`
 
 Per-case results per target, kept across runs. Every `eva run` in dataset
 mode stores one record per case in `.eva/state.db` (or the `--db` file),
@@ -201,6 +201,7 @@ evaluator applied to. Record and file format:
 | `eva results list` | `--dataset` (required, name as stored), `--target`, `--status pass\|fail`, `--limit` (1000), `--dataset-file`, `--db`, `--format text\|json` |
 | `eva results export` | `--dataset` (required), `--dir` (required), `--target`, `--dataset-file`, `--dry-run`, `--db`, `--format text\|json` |
 | `eva results import PATH...` | files or directories of `*.jsonl`, `--dry-run`, `--db`, `--format text\|json` |
+| `eva results compare` | `--dataset` (required), `--left-target` (required), `--right-target` (required), `--since DATE`, `--dataset-file`, `--db`, `--format text\|json` |
 
 `--dataset-file PATH` (a dataset file or directory) restricts list/export
 to that dataset's current scored cases: superseded cases and results for a
@@ -227,6 +228,8 @@ lines go to stderr.
 - `import`: `{"dry_run", "inserted", "unchanged", "replaced", "conflicts": [...],
   "hash_mismatches": [...]}`. Idempotent. `--dry-run` reports only.
 
+- `compare`: see below.
+
 Import conflict rules (the same merge is used when exporting into an
 existing file):
 
@@ -239,6 +242,59 @@ existing file):
   `hash_mismatches`.
 - A malformed line or unsupported record version aborts the whole import
   with nothing written.
+
+### `eva results compare`
+
+Two targets on one dataset, from stored per-case results (not from runs), so
+a target's results may span many runs. `eva compare --left RUN --right RUN`
+compares two runs; this compares two targets.
+
+```bash
+eva results compare --dataset my_suite --left-target openai:a \
+  --right-target openai:b --dataset-file datasets/my_suite --format json
+```
+
+A case is **shared** when both targets hold a result for it at the same case
+hash. Only shared cases are counted. A case both targets answered under
+different case hashes is not shared (they saw different text) and is counted
+in `excluded.hash_mismatch`. With `--dataset-file`, superseded cases and
+results at a stale hash are dropped first, as in `list`, so such a case counts
+as answered by one side only. Without it every stored record for the dataset
+name is used.
+
+Figures are per category (`metadata.category`, `uncategorised` when absent),
+which needs `--dataset-file`; without it there is one `overall` bucket and no
+categories (the text output says so). `--since YYYY-MM-DD` adds one more
+bucket over shared cases whose `metadata.added` is on or after the date; it
+needs `--dataset-file`. Shared cases without a usable `added` are left out of
+it and counted in `excluded_no_added`.
+
+`--format json` writes one object:
+
+```json
+{"dataset": "my_suite", "left_target": "openai:a", "right_target": "openai:b",
+ "categorised": true,
+ "overall": {"shared": 3, "left_passed": 2, "right_passed": 2,
+             "left_rate": 0.6667, "right_rate": 0.6667, "diff": 0.0,
+             "only_left": ["a"], "only_right": ["b"]},
+ "categories": {"code": {"...": "same fields as overall"}},
+ "excluded": {"hash_mismatch": 1, "left_only": 2, "right_only": 0},
+ "since": {"date": "2026-01-01", "...": "bucket fields", "excluded_no_added": 0}}
+```
+
+- `left_passed` / `right_passed`: shared cases each side passed.
+  `*_rate` is that over `shared` (4 decimals); `diff` is `right_rate -
+  left_rate`. All three are `null` when `shared` is `0`.
+- `only_left`: shared case ids left passed and right failed; `only_right`:
+  the reverse. Sorted.
+- `categories` is `{}` and `categorised` `false` without `--dataset-file`.
+  `since` appears only with `--since`.
+- `excluded.left_only` / `right_only`: case ids answered by that side only.
+
+Exit codes for `compare`: `0` done (also when no case is shared); `2` bad
+input: unknown target (no stored results for it in the dataset), both targets
+equal, bad `--since` or `--since` without `--dataset-file`, bad `--format`,
+unreadable dataset file or duplicate case ids.
 
 ### Exit Codes:
 - `0`: Done (including nothing to do and empty lists).
