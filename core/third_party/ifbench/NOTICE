@@ -1,0 +1,17 @@
+IFEval / IFBench instruction verifiers
+
+This directory contains source files taken from the IFBench repository
+(https://github.com/allenai/IFBench, Apache License 2.0), commit
+488918665d53f867fa908a293769ec6e71e74aec, with the changes listed in
+PROVENANCE.md.
+
+  instructions.py, instructions_util.py, instructions_registry.py
+    Copyright 2025 Allen Institute for AI.
+
+  classic_instructions.py
+    Copyright 2023 The Google Research Authors. (IFEval verifiers from
+    https://github.com/google-research/google-research/tree/master/instruction_following_eval,
+    Apache License 2.0, as carried in IFBench.)
+
+The full licence text is in LICENSE. Each source file keeps its upstream
+licence header.

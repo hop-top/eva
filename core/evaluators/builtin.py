@@ -36,6 +36,7 @@ from core.evaluators.content_quality import (
 )
 from core.evaluators.forbidden_phrases import ForbiddenPhrasesEvaluator
 from core.evaluators.geval import GEvalEvaluator
+from core.evaluators.ifeval_check import IfevalCheckEvaluator
 from core.evaluators.json_path import JsonPathEvaluator
 from core.evaluators.json_schema_valid import JsonSchemaEvaluator
 from core.evaluators.language import LanguageEvaluator
@@ -181,6 +182,11 @@ BUILTIN_EVALUATOR_FACTORIES: dict[str, EvaluatorFactory] = {
     ),
     "final_answer": lambda cfg, _llm: FinalAnswerEvaluator(
         expected=cfg.get("expected"),
+    ),
+    "ifeval_check": lambda cfg, _llm: IfevalCheckEvaluator(
+        pass_on=cfg.get("pass_on", "strict"),
+        instruction_id_list=cfg.get("instruction_id_list"),
+        kwargs=cfg.get("kwargs"),
     ),
     "json_path": lambda cfg, _llm: JsonPathEvaluator(
         path=cfg.get("path", ""),

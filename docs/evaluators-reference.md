@@ -469,6 +469,69 @@ their own file. Sample: [`examples/tool-call-match.yaml`](examples/tool-call-mat
 
 ---
 
+## `ifeval_check`
+
+Runs the published IFEval and IFBench instruction verifiers on the reply, deterministically
+and offline: no judge model. The verifiers are vendored from
+[allenai/IFBench](https://github.com/allenai/IFBench) (Apache-2.0; it includes the
+[google-research IFEval](https://github.com/google-research/google-research/tree/master/instruction_following_eval)
+verifiers), pinned at commit `488918665d53`; see `core/third_party/ifbench/PROVENANCE.md`.
+83 instruction ids are supported: the 25 IFEval ids (for example `length_constraints:number_words`,
+`keywords:existence`, `detectable_format:json_format`, `language:response_language`) and the 58
+IFBench ids (for example `count:numbers`, `format:no_whitespace`, `words:palindrome`).
+
+**Dataset-case evaluator:** reads `metadata.instruction_id_list` and `metadata.kwargs` (a list
+with one object per id, as in the google/IFEval and allenai/IFBench_test rows). A case without
+`instruction_id_list` is not applicable: no result is recorded for it. `null` kwarg values are
+dropped, as IFBench's rows carry every key with `null` for the unused ones. The case `input` is
+passed to verifiers that need the prompt (for example `combination:repeat_prompt`).
+
+Each instruction is checked **strict** (the reply as is) and **loose** (also tries the reply
+without its first line, without its last line, without both, and each of those with `*`
+removed; any variant passing counts). The case passes when **all** listed instructions pass
+(prompt-level) at the `pass_on` level. The reason always lists strict and loose per
+instruction, and the score metadata carries `strict`, `loose` and per-instruction results.
+Reasoning (`<think>` or a separate field) is not graded.
+
+An unknown instruction id, malformed metadata or a verifier error scores `0.0` with a reason
+starting `error:` (metadata `error`); it never passes.
+
+### Configuration Properties:
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `pass_on` | `string` | No | `strict` (default) or `loose`: which result decides pass or fail. |
+| `instruction_id_list` | `list[string]` | No | Fallback ids when a case has none (contract mode). |
+| `kwargs` | `list[object]` | No | Fallback kwargs, one per id. |
+
+### Setup
+
+Install the extra and fetch the nltk data once (the evaluator never downloads anything):
+
+```sh
+pip install "hop-top-eva[ifeval]"
+eva data fetch            # see docs/cli-reference.md
+```
+
+Without the extra, or without the data, the case scores `0.0` and the reason names
+`pip install "hop-top-eva[ifeval]"` or `eva data fetch`. Language detection (`langdetect`) is
+seeded so grading is repeatable.
+
+```yaml
+evaluators:
+  - name: ifeval_check
+    pass_on: strict
+tests:
+  - id: ifeval-1
+    input: "Write a short note. Use at least 20 words and include the keyword garden."
+    metadata:
+      instruction_id_list: ["length_constraints:number_words", "keywords:existence"]
+      kwargs:
+        - {relation: "at least", num_words: 20}
+        - {keywords: ["garden"]}
+```
+
+---
+
 ## `latency`
 
 *(Planned for Phase 1 Integration)*

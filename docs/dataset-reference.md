@@ -25,6 +25,9 @@ tests:
     metadata: {}            # optional; free-form
 ```
 
+`ifeval_check` reads `metadata.instruction_id_list` and `metadata.kwargs` (IFEval and
+IFBench row fields); see [evaluators-reference.md](evaluators-reference.md#ifeval_check).
+
 An evaluator that needs a case field (`code_tests` -> `tests` or `stdio`;
 `exact_match`/`final_answer` -> `expected_output`) is **skipped** for cases
 without it, so one dataset can mix code and reasoning cases. A case that
