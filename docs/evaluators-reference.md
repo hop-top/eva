@@ -280,19 +280,44 @@ prompt to end with `Final answer: <value>`.
 ## `code_tests`
 
 > [!CAUTION]
-> **Executes model output** on the machine running eva. Use only on trusted runs inside a
-> sandbox (container / VM / throwaway user). Isolation is best-effort hygiene, not a security
-> boundary: network and filesystem outside the temp dir are **not** blocked; CPU/RAM are not
-> limited.
+> **Executes model output** on the machine running eva, in a contained subprocess. The
+> containment is hardening, not a security boundary: see [Isolation](#code_tests-isolation) for
+> what is and is not contained, and run untrusted workloads inside a container or VM.
 
 Extracts the **last** fenced code block for the language (a block tagged `python`/`py`/`python3`;
 else the last untagged block; blocks inside `<think>` reasoning are ignored), appends the case's
 tests, runs it, scores `1.0` (exit 0) or `0.0` with the reason (`no python code block found`,
-`exit code 1: <stderr tail>`, `execution timeout after Ns`).
+`exit code 1: <stderr tail>`, `execution timeout after Ns`, `memory limit exceeded (>N MB)`,
+`process limit exceeded`, `file size limit exceeded (>N MB)`).
 
-Execution: fresh temp dir (deleted after), `python -I` (isolated mode), minimal env (`PATH`,
-`HOME`/`TMPDIR` = temp dir; no inherited secrets), stdin closed, process group killed on
-timeout.
+<a id="code_tests-isolation"></a>
+#### Isolation
+
+Every run, on every platform: separate process in its own process group (killed when the run
+ends), fresh temp dir as cwd (deleted after; `HOME`/`TMPDIR` point into it), `python -I`,
+minimal environment (`PATH`, `HOME`, `TMPDIR`, `LANG`; no inherited variables), stdin closed,
+wall-clock timeout, `RLIMIT_CPU` (timeout + 2s backstop), `RLIMIT_FSIZE` (`max_file_mb`),
+core dumps off, and a watchdog that polls `ps` every 250ms and kills the process group above
+`memory_mb` of resident memory or 64 processes. Output goes to files, so runaway output is
+capped by the file size limit.
+
+| Platform | Extra containment | Verified |
+|---|---|---|
+| macOS | `sandbox-exec` profile: network denied; `fork` denied; file writes denied outside the temp dir; file contents unreadable under `/Users`, `/Volumes` and the temp roots (interpreter prefixes re-allowed) | yes |
+| Linux | `unshare --user --map-root-user --net`: no network, if the kernel allows unprivileged user namespaces (probed once; some distributions restrict this) | not on a Linux host |
+
+What is **not** contained:
+
+- Linux: filesystem reads and writes outside the temp dir are not blocked.
+- macOS: reads outside the denied roots (for example `/etc`, `/usr`, `/opt`) are not blocked;
+  denying `fork` also stops legitimate `subprocess`/`multiprocessing` use in generated code.
+- Memory is capped by polling, not by the kernel (macOS does not apply `RLIMIT_AS`): a fast
+  allocation can overshoot the cap briefly. Process count is likewise polled; on Linux a
+  process that leaves the process group can outlive the run.
+- When no OS layer is available (no `sandbox-exec`, user namespaces disabled, or eva itself
+  already inside a sandbox), the run falls back to the limits above and logs one warning.
+  Check `core.evaluators._sandbox.isolation_status()` for what is active.
+- A kernel or sandbox bug, or an attack by another process of the same user, is out of scope.
 
 ### Configuration Properties:
 | Property | Type | Required | Description |
@@ -300,6 +325,8 @@ timeout.
 | `language` | `string` | No | Default `python`. Other languages: add a `CodeLanguage` to `CODE_LANGUAGES` in `core/evaluators/code_tests.py`. |
 | `timeout` | `number` | No | Seconds, default `10`. `null` rejected. |
 | `test_code` | `string` | No | Shared harness appended after each case's tests. |
+| `memory_mb` | `integer` | No | Resident-memory cap for the run, default `512`. |
+| `max_file_mb` | `integer` | No | Largest file the program may write (including stdout/stderr), default `16`. |
 
 ### Test-case fields:
 | Field | Type | Description |
@@ -319,7 +346,7 @@ tests:
 ```
 
 Related: `code_block_runs` only **parses** blocks (no execution); `code_test_passes` executes the
-**first** python block with a config-level `test_code` (no per-case tests, `-c`, no temp dir).
+**first** python block with a config-level `test_code` (no per-case tests, `-c`, no temp dir, **no isolation**).
 
 ---
 

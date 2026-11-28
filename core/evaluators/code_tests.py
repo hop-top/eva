@@ -1,16 +1,18 @@
 # core/evaluators/code_tests.py
 """``code_tests``: execute model-generated code against per-case unit tests.
 
-SECURITY: this EXECUTES MODEL OUTPUT on the host. Use it only on trusted
-runs and inside a sandbox you control (container, VM, throwaway user).
-Isolation here is best-effort hygiene, not a security boundary:
+SECURITY: this EXECUTES MODEL OUTPUT on the host in a contained subprocess
+(see ``core/evaluators/_sandbox.py`` and ``isolation_status()``). It is
+hardening, not a guarantee; run untrusted workloads inside a container or VM.
 
-- temp working dir, deleted afterwards; ``HOME`` points into it
-- ``python -I`` (isolated: no user site, no PYTHON* env, no cwd on path)
-- minimal env (PATH only + a few fixed vars) — no inherited secrets
-- stdin closed, output truncated, hard wall-clock timeout, process group
-  killed on timeout
-- NOT blocked: network, filesystem access outside the temp dir, CPU/RAM
+Always: temp working dir (deleted afterwards, ``HOME``/``TMPDIR`` point into
+it), ``python -I``, minimal env (no inherited secrets), stdin closed, own
+process group killed on exit, wall-clock timeout, CPU-time / file-size /
+core-dump rlimits, parent-side resident-memory and process-count cap.
+macOS adds a ``sandbox-exec`` profile: no network, no fork, no writes
+outside the temp dir, no file reads under /Users, /Volumes and temp roots.
+Linux adds a network namespace when unprivileged user namespaces are allowed.
+NOT contained on Linux: filesystem reads and writes outside the temp dir.
 
 Flow: take the last fenced block for the language (tag match first, then
 last untagged block), append the case's tests, run. Exit 0 = 1.0, else
@@ -30,13 +32,13 @@ import os
 import re
 import shutil
 import signal
-import subprocess
 import sys
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 
 from core.chat_targets import split_reasoning
+from core.evaluators import _sandbox
 from core.models import Score
 
 _FENCE = re.compile(r"```[ \t]*([^\s`]*)[^\n`]*\n(.*?)```", re.DOTALL)
@@ -90,7 +92,14 @@ def _tail(s: str, n: int = 500) -> str:
 class CodeTestsEvaluator:
     """Run the response's last code block plus the case's tests."""
 
-    def __init__(self, language: str = "python", timeout: float = 10, test_code: str = ""):
+    def __init__(
+        self,
+        language: str = "python",
+        timeout: float = 10,
+        test_code: str = "",
+        memory_mb: int = 512,
+        max_file_mb: int = 16,
+    ):
         if timeout is None:
             raise ValueError("timeout=None is not permitted — set a second limit")
         if language not in CODE_LANGUAGES:
@@ -101,6 +110,8 @@ class CodeTestsEvaluator:
         self.language = CODE_LANGUAGES[language]
         self.timeout = timeout
         self.test_code = test_code
+        self.memory_mb = memory_mb
+        self.max_file_mb = max_file_mb
 
     def run(self, response: str) -> Score:
         # No case context: only the shared ``test_code`` config can supply tests.
@@ -123,48 +134,44 @@ class CodeTestsEvaluator:
             )
         return self._execute(code + "\n\n" + tests + "\n")
 
+    def _run(self, workdir: str, stdin_data: str | None = None) -> _sandbox.RunResult:
+        return _sandbox.run_isolated(
+            self.language.command(self.language.filename),
+            workdir=workdir,
+            timeout=self.timeout,
+            stdin_data=stdin_data,
+            memory_mb=self.memory_mb,
+            max_file_mb=self.max_file_mb,
+        )
+
+    def _failure(self, r: _sandbox.RunResult) -> str:
+        """Human-readable reason for a non-zero / killed run."""
+        if r.killed == "timeout":
+            return f"execution timeout after {self.timeout}s"
+        if r.killed == "memory":
+            return f"memory limit exceeded (>{self.memory_mb} MB)"
+        if r.killed == "processes":
+            return "process limit exceeded"
+        if r.returncode == -signal.SIGXFSZ or "File too large" in (r.stderr or ""):
+            return f"file size limit exceeded (>{self.max_file_mb} MB)"
+        if r.returncode == -signal.SIGXCPU:
+            return "cpu time limit exceeded"
+        detail = _tail((r.stderr or r.stdout)[-_OUTPUT_LIMIT:])
+        reason = f"exit code {r.returncode}"
+        if detail:
+            reason += f": {detail}"
+        if r.contained and "Operation not permitted" in (r.stderr or ""):
+            reason += " (blocked by sandbox)"
+        return reason
+
     def _execute(self, program: str) -> Score:
         workdir = tempfile.mkdtemp(prefix="eva-code-")
         try:
             with open(os.path.join(workdir, self.language.filename), "w") as f:
                 f.write(program)
-            env = {
-                "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
-                "HOME": workdir,
-                "TMPDIR": workdir,
-                "LANG": "C.UTF-8",
-                "PYTHONDONTWRITEBYTECODE": "1",
-            }
-            proc = subprocess.Popen(
-                self.language.command(self.language.filename),
-                cwd=workdir,
-                env=env,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                errors="replace",
-                start_new_session=True,
-            )
-            try:
-                out, err = proc.communicate(timeout=self.timeout)
-            except subprocess.TimeoutExpired:
-                try:
-                    os.killpg(proc.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                proc.communicate()
-                return Score(
-                    value=0.0, reason=f"execution timeout after {self.timeout}s"
-                )
-            if proc.returncode == 0:
+            r = self._run(workdir)
+            if r.killed is None and r.returncode == 0:
                 return Score(value=1.0)
-            detail = _tail((err or out)[-_OUTPUT_LIMIT:])
-            return Score(
-                value=0.0,
-                reason=f"exit code {proc.returncode}: {detail}"
-                if detail
-                else f"exit code {proc.returncode}",
-            )
+            return Score(value=0.0, reason=self._failure(r))
         finally:
             shutil.rmtree(workdir, ignore_errors=True)

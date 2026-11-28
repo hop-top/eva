@@ -186,5 +186,7 @@ Cost is blank for local models (no pricing).
 
 ## Security
 
-`code_tests` executes model output. See
-[evaluators-reference.md](evaluators-reference.md#code_tests).
+`code_tests` executes model output in a contained subprocess (throwaway
+directory, scrubbed environment, time/memory/file limits, network and
+filesystem containment where the OS allows). It is hardening, not a security
+boundary. See [evaluators-reference.md](evaluators-reference.md#code_tests).
