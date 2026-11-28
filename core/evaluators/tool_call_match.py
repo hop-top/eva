@@ -185,11 +185,10 @@ class ToolCallMatchEvaluator:
         if call.tool_name != name:
             return f"called {call.tool_name!r}, expected {name!r}"
         label = f"{name}"
-        required = [a for a, vals in accepted.items() if "" not in vals]
-        if call.raw_args is not None and required:
+        if call.raw_args is not None:
             return (
                 f"{label}: arguments were not valid JSON "
-                f"(got {_short(call.raw_args)}), required: {', '.join(required)}"
+                f"(got {_short(call.raw_args)})"
             )
         args = call.args or {}
         for arg, vals in accepted.items():
