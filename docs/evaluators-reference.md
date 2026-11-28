@@ -15,6 +15,15 @@ evaluator that does not apply to a case (no result is recorded for that case) an
 from a judge evaluator with no judge configured (listed under `skipped`, the rest
 of the run proceeds).
 
+The same applies to contracts, `eva contract validate` and the gateway. A contract
+with an invalid evaluator configuration does not load: `eva run --contract` exits
+`2` and `eva contract validate` exits `1`, both with the same
+`evaluator '<name>': <problem>` message; `eva serve` skips that contract file with a
+warning carrying the message. An inline evaluator of `POST /v1/proxy` with an invalid
+configuration is answered with `422` and `{"detail": "evaluator '<name>': <problem>"}`.
+A judge evaluator with no judge configured is not invalid in any of these: it is
+skipped with its reason.
+
 Dataset entries carry the evaluator's settings and its pass settings in one
 mapping, so `mode` is both: `refusal` and `sentence_paragraph_count` take their own
 `mode` values (`forbid`/`require`, `sentence`/`paragraph`), and any other value, such

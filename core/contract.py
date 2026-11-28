@@ -93,6 +93,31 @@ def _compile_assertions(raw: dict) -> dict:
     return raw
 
 
+def check_evaluator_configs(contract: Contract) -> None:
+    """Build each built-in evaluator once; invalid config is a ContractValidationError.
+
+    Same mechanism as dataset runs (``build_evaluator``): a judge evaluator
+    without an adapter is not invalid (callers skip it), a bad config is.
+    """
+    from core.evaluators.builtin import BUILTIN_EVALUATOR_FACTORIES
+    from core.evaluators.errors import (
+        EvaluatorConfigError,
+        JudgeAdapterRequired,
+        build_evaluator,
+    )
+
+    for ref in contract.evaluators:
+        factory = BUILTIN_EVALUATOR_FACTORIES.get(ref.name)
+        if factory is None:
+            continue
+        try:
+            build_evaluator(ref.name, factory, ref.__pydantic_extra__ or {}, None)
+        except JudgeAdapterRequired:
+            continue
+        except EvaluatorConfigError as e:
+            raise ContractValidationError(str(e)) from e
+
+
 def load_contract(path: Path) -> Contract:
     if not path.exists():
         raise FileNotFoundError(f"Contract file not found: {path}")
@@ -101,6 +126,8 @@ def load_contract(path: Path) -> Contract:
         raise ContractValidationError("Contract must have a 'name' field")
     raw = _compile_assertions(raw)
     try:
-        return Contract.model_validate(raw)
+        contract = Contract.model_validate(raw)
     except ValidationError as e:
         raise ContractValidationError(str(e)) from e
+    check_evaluator_configs(contract)
+    return contract

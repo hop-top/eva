@@ -55,6 +55,12 @@ Each item in the `evaluators` list is a reference to a built-in or custom evalua
 
 *Note: Individual evaluators may require additional properties based on their type (e.g., `substring` for the `contains` evaluator).*
 
+A built-in evaluator with invalid configuration makes the contract invalid:
+`eva contract validate` reports `evaluator '<name>': <problem>` and exits `1`,
+`eva run --contract` exits `2` with the same message, and `eva serve` skips the
+file with a warning. See
+[Invalid evaluator configuration](evaluators-reference.md#invalid-evaluator-configuration).
+
 ---
 
 ## Retry Policy Properties

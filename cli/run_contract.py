@@ -22,6 +22,7 @@ import yaml
 
 from core.contract import ContractValidationError, load_contract
 from core.evaluators.builtin import BUILTIN_EVALUATOR_FACTORIES
+from core.evaluators.errors import JudgeAdapterRequired, build_evaluator
 from core.evaluators.judge_support import (  # noqa: F401  (JUDGE_* re-exported)
     JUDGE_NEEDS,
     JUDGE_PROMPT_ONLY,
@@ -200,12 +201,13 @@ def evaluate_contract(
             skipped.append(ref.name)
             continue
         cfg = ref.__pydantic_extra__ or {}
-        # Judge-based factories raise ValueError without an adapter (see
-        # core/evaluators/builtin.py:_require_llm). Probe without one so
-        # non-judge evaluators (incl. prose_assertion) behave as before.
+        # Judge-based factories raise JudgeAdapterRequired without an adapter
+        # (see core/evaluators/builtin.py:_require_llm). Probe without one so
+        # non-judge evaluators (incl. prose_assertion) behave as before; any
+        # other failure is an EvaluatorConfigError (a ValueError: exit 2).
         try:
-            ev = factory(cfg, None)
-        except ValueError as e:
+            ev = build_evaluator(ref.name, factory, cfg, None)
+        except JudgeAdapterRequired as e:
             why = judge_skip_reason(ref.name, cfg, e, llm_adapter, RUNNER)
             if why is None and prompt is None:
                 why = NO_PROMPT_REASON
