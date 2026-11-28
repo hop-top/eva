@@ -38,10 +38,13 @@ configuration is answered with `422` and `{"detail": "evaluator '<name>': <probl
 A judge evaluator with no judge configured is not invalid in any of these: it is
 skipped with its reason.
 
-Dataset entries carry the evaluator's settings and its pass settings in one
-mapping, so `mode` is both: `refusal` and `sentence_paragraph_count` take their own
-`mode` values (`forbid`/`require`, `sentence`/`paragraph`), and any other value, such
-as the pass mode `binary`, is rejected as invalid configuration in a dataset.
+`mode` always means the pass mode (`binary`, `threshold`, `warn`), in a dataset entry,
+a contract evaluator and a gateway evaluator alike. `refusal` and
+`sentence_paragraph_count` have a setting of their own; it is `refusal_mode` and
+`count_mode` (see [`refusal`](#refusal) and
+[`sentence_paragraph_count`](#sentence_paragraph_count)). A `mode` that is one of
+their values is rejected as invalid configuration, naming the key to use, e.g.
+`evaluator 'refusal': mode 'require' is not a pass mode; set refusal_mode: require`.
 
 ---
 
@@ -273,6 +276,48 @@ evaluators:
     mode: binary
     case_sensitive: false
     pattern: '\b(reply|subscribe|share|join)\b'
+```
+
+---
+
+## `refusal`
+
+Detects a refusal in the response ("I can't help with that", ...). Scores `1.0` or `0.0`.
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `refusal_mode` | `string` | No | `forbid` (default): a refusal fails. `require`: a response that is not a refusal fails. |
+
+`mode` is the pass mode, as for every evaluator.
+
+```yaml
+evaluators:
+  - name: refusal
+    refusal_mode: require
+    mode: binary
+```
+
+---
+
+## `sentence_paragraph_count`
+
+Counts sentences or paragraphs and checks the count against bounds.
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `count_mode` | `string` | No | `sentence` (default) or `paragraph`: what is counted. |
+| `min` | `integer` | No | Fewest allowed. |
+| `max` | `integer` | No | Most allowed. |
+
+`mode` is the pass mode, as for every evaluator.
+
+```yaml
+evaluators:
+  - name: sentence_paragraph_count
+    count_mode: paragraph
+    max: 3
+    mode: threshold
+    min_score: 1.0
 ```
 
 ---
