@@ -34,13 +34,19 @@ class EvaTestCase(BaseModel):
     # earlier case stays in the dataset but is no longer scored.
     supersedes: str | None = None
 
+    @model_validator(mode="after")
+    def _tool_choice_needs_tools(self) -> "EvaTestCase":
+        if self.tool_choice is not None and not self.tools:
+            raise ValueError("tool_choice requires tools")
+        return self
+
 
 # Fields that define what a case asks and how it is scored. ``metadata`` is
 # deliberately not part of the case hash (provenance may be corrected
 # without invalidating stored results).
 CASE_HASH_FIELDS = (
     "id", "input", "expected_output", "retrieval_context",
-    "planned_steps", "tests", "supersedes",
+    "planned_steps", "tests", "supersedes", "tools", "tool_choice", "stdio",
 )
 
 
@@ -61,12 +67,6 @@ def case_hash(case: "EvaTestCase | dict") -> str:
         canon["tests"] = "\n".join(canon["tests"])
     blob = json.dumps(canon, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
-
-    @model_validator(mode="after")
-    def _tool_choice_needs_tools(self) -> "EvaTestCase":
-        if self.tool_choice is not None and not self.tools:
-            raise ValueError("tool_choice requires tools")
-        return self
 
 
 class Dataset(BaseModel):
