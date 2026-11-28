@@ -1,0 +1,171 @@
+{
+ "default/test": [
+  {
+   "answer": "I",
+   "answer_index": 8,
+   "category": "business",
+   "cot_content": "",
+   "options": [
+    "Safe practices, Fear, Jealousy, Trivial",
+    "Unsafe practices, Distress, Joy, Trivial",
+    "Safe practices, Wants, Jealousy, Trivial",
+    "Safe practices, Distress, Fear, Trivial",
+    "Unsafe practices, Wants, Jealousy, Serious",
+    "Safe practices, Distress, Jealousy, Serious",
+    "Safe practices, Wants, Fear, Serious",
+    "Unsafe practices, Wants, Fear, Trivial",
+    "Unsafe practices, Distress, Fear, Serious"
+   ],
+   "question": "Typical advertising regulatory bodies suggest, for example that adverts must not: encourage _________, cause unnecessary ________ or _____, and must not cause _______ offence.",
+   "question_id": 70,
+   "src": "ori_mmlu-business_ethics"
+  },
+  {
+   "answer": "F",
+   "answer_index": 5,
+   "category": "business",
+   "cot_content": "",
+   "options": [
+    "Shareholders, Diligence, Self-interest",
+    "Shareholders, Self-interest, Care and Skill",
+    "Stakeholders, Care and skill, Self-interest",
+    "Stakeholders, Diligence, Care and Skill",
+    "Customers, Care and Skill, Diligence",
+    "Shareholders, Care and Skill, Diligence",
+    "Shareholders, Self-interest, Diligence",
+    "Employees, Care and Skill, Diligence",
+    "Stakeholders, Self-interest, Diligence",
+    "Stakeholder, Care and Skill, Diligence"
+   ],
+   "question": "Managers are entrusted to run the company in the best interest of ________. Specifically, they have a duty to act for the benefit of the company, as well as a duty of ________ and of _______.",
+   "question_id": 71,
+   "src": "ori_mmlu-business_ethics"
+  },
+  {
+   "answer": "J",
+   "answer_index": 9,
+   "category": "business",
+   "cot_content": "",
+   "options": [
+    "Down, Autonomy, Remuneration, Benefit",
+    "Down, Involvement, Independence, Benefit",
+    "Up, Independence, Involvement, Benefit",
+    "Down, Privacy, Autonomy, Benefit",
+    "Up, Involvement, Autonomy, Compensation",
+    "Down, Independence, Autonomy, Compensation",
+    "Up, Involvement, Remuneration, Severance",
+    "Up, Privacy, Remuneration, Severance",
+    "Up, Autonomy, Remuneration, Compensation",
+    "Down, Involvement, Remuneration, Compensation"
+   ],
+   "question": "There are two main issues associated with _____ sizing. _______ is a key issue as due to the information policy of the corporation it can be argued that employees have a right to know if they are being made redundant. _______ is a second issue, particularly the ________ package that employees receive when laid off.",
+   "question_id": 72,
+   "src": "ori_mmlu-business_ethics"
+  },
+  {
+   "answer": "C",
+   "answer_index": 2,
+   "category": "business",
+   "cot_content": "",
+   "options": [
+    "Ethical egoism",
+    "Ethics of duty",
+    "Postmodern ethics",
+    "Consequentialist ethics",
+    "Utilitarian ethics",
+    "Deontological ethics",
+    "Virtue ethics",
+    "Ethics of care",
+    "Ethics of rights",
+    "Relativist ethics"
+   ],
+   "question": "_______ locate morality beyond the sphere of rationality in an emotional 'moral impulse' towards others.",
+   "question_id": 73,
+   "src": "ori_mmlu-business_ethics"
+  },
+  {
+   "answer": "G",
+   "answer_index": 6,
+   "category": "business",
+   "cot_content": "",
+   "options": [
+    "Interest, Certain, Assured, Both tangible and intangible assets",
+    "Interest, Uncertain, Assured, Both tangible and intangible assets",
+    "Interest, Uncertain, Speculative, Intangible assets",
+    "Interest, Certain, Assured, Tangible assets",
+    "Interest, Uncertain, Assured, Intangible assets",
+    "Profit, Uncertain, Speculative, Tangible assets",
+    "Interest, Uncertain, Speculative, Tangible assets",
+    "Interest, Certain, Speculative, Intangible assets",
+    "Profit, Certain, Assured, Tangible assets",
+    "Interest, Certain, Speculative, Both tangible and intangible assets"
+   ],
+   "question": " Some of key differences between Islamic finance and conventional finance include - prohibition of charging and paying _______, prohibition on ______ and ______ transactions, prohibition of sinful investment and requirement for all financial products to be backed by __________.",
+   "question_id": 74,
+   "src": "ori_mmlu-business_ethics"
+  },
+  {
+   "answer": "A",
+   "answer_index": 0,
+   "category": "business",
+   "cot_content": "",
+   "options": [
+    "Organizational size, industry type, and geographical location.",
+    "Organizational size, industry type, and age of company.",
+    "Organizational size, industry type, and customer base.",
+    "Organizational size, industry type, and annual revenue.",
+    "Organizational size, industry type, and business strategy.",
+    "None of the above.",
+    "Organizational size, industry type, and gender.",
+    "Organizational size, industry type, and number of branches.",
+    "Psychographics, purchaser, and behavioural criteria.",
+    "Organizational size, industry type, and number of employees."
+   ],
+   "question": " Which of the following are the three broad groups of organizational characteristics segmentation criteria?",
+   "question_id": 75,
+   "src": "ori_mmlu-marketing"
+  },
+  {
+   "answer": "D",
+   "answer_index": 3,
+   "category": "business",
+   "cot_content": "",
+   "options": [
+    "Customer participation and environmental acquisition.",
+    "Environmental acquisition and environmental relationship.",
+    "Customer retention and environmental relationship.",
+    "Customer participation and environmental relationship.",
+    "Customer acquisition and customer retention.",
+    "Customer participation and customer relationship.",
+    "Customer acquisition and environmental participation.",
+    "Environmental participation and customer relationship.",
+    "Customer retention and customer relationship.",
+    "Customer acquisition and environmental relationship."
+   ],
+   "question": " Pine and Gilmore (1999) derive four distinct realms of experience, based on two dimensions. What are these dimensions?",
+   "question_id": 76,
+   "src": "ori_mmlu-marketing"
+  },
+  {
+   "answer": "J",
+   "answer_index": 9,
+   "category": "business",
+   "cot_content": "",
+   "options": [
+    "Non-probability.",
+    "Cross-sectional.",
+    "Qualitative.",
+    "Ethnographic.",
+    "Longitudinal.",
+    "Experimental.",
+    "Probability.",
+    "Observational.",
+    "Case Study.",
+    "Quantitative."
+   ],
+   "question": " Which type of research methods are designed to elicit responses to predetermined, standardized questions from many respondents?",
+   "question_id": 77,
+   "src": "ori_mmlu-marketing"
+  }
+ ]
+}
