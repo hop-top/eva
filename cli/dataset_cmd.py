@@ -1,7 +1,8 @@
 # cli/dataset_cmd.py
 """``eva dataset`` — integrity commands for append-only datasets.
 
-Exit codes: 0 ok, 2 usage / bad input / dataset not append-only,
+Exit codes: 0 ok, 1 import: upstream unreachable or unusable (nothing is
+written), 2 usage / bad input / dataset not append-only / source refused,
 3 integrity check failed (edited, removed, colliding, unrecorded or
 provenance-less cases; nothing is written).
 """
@@ -13,7 +14,7 @@ from pathlib import Path
 
 import typer
 
-dataset_app = typer.Typer(help="Append-only dataset integrity: check, lock, add.")
+dataset_app = typer.Typer(help="Append-only datasets: check, lock, add, import.")
 
 _PATH = typer.Argument(..., help="Dataset: YAML file or directory of JSONL files.")
 _FORMAT = typer.Option("text", "--format", help="text | json")
@@ -118,3 +119,47 @@ def add_cmd(
           f"{'ok' if not problems else 'FAILED'}: {verb} {len(added)}, "
           f"skipped {len(skipped)} identical", problems)
     raise typer.Exit(0 if not problems else 3)
+
+
+@dataset_app.command("import")
+def import_cmd(
+    source: str = typer.Argument(..., help="Public source: babilong, mmlupro, summedits, "
+                                 "humanevalplus, mbppplus, naturalplan."),
+    into: Path = typer.Option(..., "--into", help="Append-only directory dataset to grow."),
+    n: int = typer.Option(20, "--n", help="Cases wanted; a larger N only appends."),
+    seed: str = typer.Option("0", "--seed", help="Sampling seed; same seed, same order."),
+    file: str | None = typer.Option(
+        None, "--file", help="Target *.jsonl inside the dataset (default: SOURCE.jsonl)."
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Fetch and report; write nothing."),
+    fmt: str = _FORMAT,
+):
+    """Sample cases from a public benchmark set and append them to a dataset.
+    Seeded and repeatable; every case carries provenance; re-importing is a no-op."""
+    import datetime
+
+    from core.append_only import NotAppendOnly
+    from core.importers import FetchError, ImportRefused, import_source
+
+    fmt = _fmt(fmt)
+    try:
+        res = import_source(
+            source, into, n, seed, datetime.date.today().isoformat(),
+            file=file, dry_run=dry_run,
+        )
+    except FetchError as e:
+        _fail(f"fetch failed, nothing written: {e}", 1)
+    except (NotAppendOnly, ImportRefused, ValueError, FileNotFoundError) as e:
+        _fail(str(e))
+    payload = {
+        "ok": not res.problems, "dry_run": dry_run, "source": res.source,
+        "seed": res.seed, "requested": res.requested, "sampled": res.sampled,
+        "revision": res.revision, "added": res.added, "skipped": res.skipped,
+        "problems": [p.as_dict() for p in res.problems],
+    }
+    verb = "would add" if dry_run else "added"
+    _emit(fmt, payload,
+          f"{'ok' if not res.problems else 'FAILED'}: {verb} {len(res.added)}, "
+          f"skipped {len(res.skipped)} identical (sampled {res.sampled} of {res.requested})",
+          res.problems)
+    raise typer.Exit(0 if not res.problems else 3)
