@@ -460,7 +460,7 @@ serves the bundled copy, never an installed one.
 ### Arguments:
 | Argument | Description |
 |---|---|
-| `reference` | Optional. Name of a reference file, without `.md` (`rest-api`, `contract-yaml`). Omit to print `SKILL.md`. |
+| `reference` | Optional. Name of a reference file, without `.md` (`rest-api`, `contract-yaml`, `benchmarks`). Omit to print `SKILL.md`. |
 
 ### Usage:
 ```bash
