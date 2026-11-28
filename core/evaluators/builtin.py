@@ -67,6 +67,7 @@ from core.evaluators.regex_match import RegexEvaluator
 from core.evaluators.sentence_paragraph_count import SentenceParagraphCountEvaluator
 from core.evaluators.status_code import StatusCodeEvaluator
 from core.evaluators.step_efficiency import StepEfficiencyEvaluator
+from core.evaluators.tool_call_match import ToolCallMatchEvaluator
 from core.evaluators.tool_correctness import ToolCorrectnessEvaluator
 from core.evaluators.tool_use import ToolUseEvaluator
 from core.evaluators.word_count import WordCountEvaluator
@@ -164,6 +165,12 @@ BUILTIN_EVALUATOR_FACTORIES: dict[str, EvaluatorFactory] = {
         language=cfg.get("language", "python"),
         timeout=cfg.get("timeout", 10),
         test_code=cfg.get("test_code", ""),
+    ),
+    # Tool-call log vs the case's metadata.expected_calls; deterministic.
+    "tool_call_match": lambda cfg, _llm: ToolCallMatchEvaluator(
+        match=cfg.get("match", "single"),
+        case_sensitive=cfg.get("case_sensitive", True),
+        normalize_whitespace=cfg.get("normalize_whitespace", False),
     ),
     "exact_match": lambda cfg, _llm: ExactMatchEvaluator(
         expected=cfg.get("expected"),

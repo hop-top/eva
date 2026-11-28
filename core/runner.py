@@ -157,6 +157,7 @@ class Runner:
                     "retrieval_context": test.retrieval_context,
                     "expected_output": test.expected_output,
                     "planned_steps": test.planned_steps,
+                    "metadata": test.metadata,
                 }
                 self.pm.hook.before_eval(test_id=test.id, context=run_ctx)
                 chat: ChatResult | None = None
