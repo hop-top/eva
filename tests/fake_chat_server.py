@@ -7,7 +7,9 @@ from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # reply(prompt) -> dict with optional keys:
-#   content, reasoning_content, reasoning, status, thinking, usage
+#   content, reasoning_content, reasoning, status, thinking, usage,
+#   tool_calls: [{name, arguments}] (arguments: str passed verbatim, or dict;
+#   anthropic: tool_use blocks with ``input`` = dict arguments)
 Reply = Callable[[str], dict]
 
 
@@ -34,6 +36,20 @@ class FakeChatServer:
                     for k in ("reasoning_content", "reasoning"):
                         if k in r:
                             msg[k] = r[k]
+                    if "tool_calls" in r:
+                        msg["tool_calls"] = [
+                            {
+                                "id": f"call_{i}",
+                                "type": "function",
+                                "function": {
+                                    "name": c["name"],
+                                    "arguments": c["arguments"]
+                                    if isinstance(c["arguments"], str)
+                                    else json.dumps(c["arguments"]),
+                                },
+                            }
+                            for i, c in enumerate(r["tool_calls"])
+                        ]
                     payload = {
                         "model": r.get("model", body["model"]),
                         "choices": [{"message": msg, "finish_reason": "stop"}],
@@ -47,6 +63,11 @@ class FakeChatServer:
                     if "thinking" in r:
                         blocks.append({"type": "thinking", "thinking": r["thinking"]})
                     blocks.append({"type": "text", "text": r.get("content", "")})
+                    for i, c in enumerate(r.get("tool_calls", [])):
+                        blocks.append({
+                            "type": "tool_use", "id": f"tu_{i}",
+                            "name": c["name"], "input": c["arguments"],
+                        })
                     payload = {
                         "model": body["model"],
                         "content": blocks,

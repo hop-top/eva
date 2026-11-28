@@ -291,11 +291,17 @@ def run(
 
         chat_provider = build_provider(ds.chat)
 
-        async def call_agent(input: str, target_url: str) -> Any:
-            return await chat_provider.complete(input)
+        async def call_agent(
+            input: str, target_url: str, tools: Any = None, tool_choice: Any = None
+        ) -> Any:
+            return await chat_provider.complete(
+                input, tools=tools, tool_choice=tool_choice
+            )
     else:
 
-        async def call_agent(input: str, target_url: str) -> Any:
+        async def call_agent(
+            input: str, target_url: str, tools: Any = None, tool_choice: Any = None
+        ) -> Any:
             async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.post(target_url, json={"input": input})
                 return resp.text

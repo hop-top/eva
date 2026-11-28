@@ -153,6 +153,9 @@ class ToolCall(BaseModel):
     trace_id: Optional[str] = None
     span_id: Optional[str] = None
     metadata_json: Optional[str] = None
+    # Original argument string when the call's arguments were not valid JSON
+    # (read from metadata_json); None otherwise.
+    raw_args: Optional[str] = None
 
 
 class UsageRecord(BaseModel):

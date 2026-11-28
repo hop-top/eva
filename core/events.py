@@ -30,6 +30,9 @@ class ToolCallEvent:
     trace_id: str | None = None
     span_id: str | None = None
     step_index: int | None = None
+    # Original argument string when the model's arguments were not a valid
+    # JSON object; ``args`` is {} then. None otherwise.
+    raw_args: str | None = None
     started_at: datetime = field(
         default_factory=lambda: datetime.now(tz=timezone.utc)
     )
@@ -57,6 +60,7 @@ class EventSink:
         span_id: str | None = None,
         step_index: int | None = None,
         started_at: datetime | None = None,
+        raw_args: str | None = None,
     ) -> ToolCallEvent:
         """Record a tool call and return the stored event."""
         evt = ToolCallEvent(
@@ -68,6 +72,7 @@ class EventSink:
             trace_id=trace_id,
             span_id=span_id,
             step_index=step_index,
+            raw_args=raw_args,
             started_at=started_at or datetime.now(tz=timezone.utc),
         )
         self.events.append(evt)

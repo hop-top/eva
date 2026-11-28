@@ -84,6 +84,42 @@ so runs of the same model/endpoint group together (`eva runs list
 
 Add providers with `core.chat_targets.register_chat_provider`.
 
+### Tool definitions per case
+
+A case may offer tools to a chat target with two optional fields, in
+OpenAI format:
+
+```yaml
+tests:
+  - id: weather-paris
+    input: What is the weather in Paris?
+    tool_choice: required          # optional: auto | none | required | {type: function, function: {name: ...}}
+    tools:
+      - type: function
+        function:
+          name: get_weather
+          description: Current weather for a city
+          parameters:
+            type: object
+            properties: {city: {type: string}}
+            required: [city]
+```
+
+`tool_choice` requires `tools`. Cases without `tools` send a request
+identical to before.
+
+- `openai`: `tools` and `tool_choice` are sent verbatim in the
+  `/chat/completions` body (OpenAI, Ollama `/v1`, mlx_lm.server, vLLM).
+- `anthropic`: each tool becomes `{name, description, input_schema}`;
+  `tool_choice` maps `auto` -> `auto`, `required` -> `any`, `none` ->
+  `none`, a named function -> `{type: tool, name}`.
+- URL targets ignore `tools`.
+
+One request is sent. Eva does not run the tools and sends no follow-up
+turn: every tool call in the reply is recorded in the case's tool-call
+log (see [Tool-call log](evaluators-reference.md#tool-call-log)). A reply
+without tool calls records an empty log, not an error.
+
 ### CLI overrides
 
 ```sh

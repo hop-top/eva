@@ -74,6 +74,16 @@ def _er_record_to_model(r: EvaluatorResultRecord) -> EvaluatorResult:
     )
 
 
+def _raw_args(metadata_json: str | None) -> str | None:
+    if not metadata_json:
+        return None
+    try:
+        raw = json.loads(metadata_json).get("raw_args")
+    except (ValueError, AttributeError):
+        return None
+    return raw if isinstance(raw, str) else None
+
+
 def _tc_record_to_model(r: ToolCallRecord) -> ToolCall:
     return ToolCall(
         tool_call_id=r.tool_call_id,
@@ -89,6 +99,7 @@ def _tc_record_to_model(r: ToolCallRecord) -> ToolCall:
         trace_id=r.trace_id,
         span_id=r.span_id,
         metadata_json=r.metadata_json,
+        raw_args=_raw_args(r.metadata_json),
     )
 
 

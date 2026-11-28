@@ -162,7 +162,15 @@ class Runner:
                 chat: ChatResult | None = None
                 target_error: str | None = None
                 try:
-                    raw_response = await self.call_agent(test.input, dataset.target)
+                    if test.tools:
+                        raw_response = await self.call_agent(
+                            test.input, dataset.target,
+                            tools=test.tools, tool_choice=test.tool_choice,
+                        )
+                    else:
+                        raw_response = await self.call_agent(
+                            test.input, dataset.target
+                        )
                 except TargetError as e:
                     raw_response, target_error = "", str(e)
                 if isinstance(raw_response, ChatResult):
@@ -170,6 +178,16 @@ class Runner:
                     response = chat.text
                 else:
                     response = raw_response
+                if chat is not None:
+                    # One request, log what came back: calls are recorded in
+                    # reply order; nothing is executed.
+                    for idx, call in enumerate(chat.tool_calls):
+                        invocation_sink.emit_tool_call(
+                            call.name,
+                            call.args,
+                            step_index=idx,
+                            raw_args=call.raw_args,
+                        )
                 eval_ctx = {
                     "test": test.model_dump(),
                     **run_ctx,

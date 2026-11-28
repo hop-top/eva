@@ -19,7 +19,19 @@ class EvaTestCase(BaseModel):
     # Unit-test code for the ``code_tests`` evaluator: one string or a list
     # of snippets (joined by newlines). Executed against the response's code.
     tests: str | list[str] | None = None
+    # OpenAI-format tool definitions offered to a chat target for this case
+    # (``[{"type": "function", "function": {name, description, parameters}}]``)
+    # and the optional ``tool_choice`` ("auto" | "none" | "required" | a
+    # ``{"type": "function", "function": {"name": ...}}`` mapping).
+    tools: list[dict] | None = None
+    tool_choice: str | dict | None = None
     metadata: dict = {}
+
+    @model_validator(mode="after")
+    def _tool_choice_needs_tools(self) -> "EvaTestCase":
+        if self.tool_choice is not None and not self.tools:
+            raise ValueError("tool_choice requires tools")
+        return self
 
 
 class Dataset(BaseModel):

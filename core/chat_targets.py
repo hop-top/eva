@@ -21,6 +21,7 @@ reasoning separated, plus model id / usage / latency for the run store.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import time
@@ -66,6 +67,35 @@ class ChatTarget(BaseModel):
 
 
 @dataclass
+class ChatToolCall:
+    """One tool call returned by the model (never executed).
+
+    ``args`` is the parsed argument object. When the model's arguments are
+    not a valid JSON object, ``args`` is ``{}`` and ``raw_args`` holds the
+    original string; otherwise ``raw_args`` is None.
+    """
+
+    name: str
+    args: dict[str, Any] = field(default_factory=dict)
+    raw_args: str | None = None
+
+
+def parse_tool_arguments(raw: Any) -> tuple[dict[str, Any], str | None]:
+    """Parse an OpenAI-style ``function.arguments`` value -> (args, raw_args)."""
+    if isinstance(raw, dict):  # some servers return an object, not a string
+        return raw, None
+    if not isinstance(raw, str):
+        return {}, None if raw is None else str(raw)
+    try:
+        parsed = json.loads(raw)
+    except ValueError:
+        return {}, raw
+    if isinstance(parsed, dict):
+        return parsed, None
+    return {}, raw
+
+
+@dataclass
 class ChatResult:
     """Answer + metadata from one chat call."""
 
@@ -76,6 +106,7 @@ class ChatResult:
     usage: dict[str, int] = field(default_factory=dict)
     latency_ms: int | None = None
     finish_reason: str | None = None
+    tool_calls: list[ChatToolCall] = field(default_factory=list)
 
 
 _THINK_RE = re.compile(r"<think(?:ing)?>(.*?)</think(?:ing)?>", re.DOTALL | re.IGNORECASE)
@@ -120,16 +151,30 @@ class ChatProvider:
             raise TargetError(f"api_key_env {env!r} is not set in the environment")
         return key
 
-    def build_request(self, prompt: str) -> tuple[str, dict[str, str], dict]:
+    def build_request(
+        self,
+        prompt: str,
+        tools: list[dict] | None = None,
+        tool_choice: str | dict | None = None,
+    ) -> tuple[str, dict[str, str], dict]:
         raise NotImplementedError
 
     def parse_response(self, body: dict) -> ChatResult:
         raise NotImplementedError
 
     async def complete(
-        self, prompt: str, client: httpx.AsyncClient | None = None
+        self,
+        prompt: str,
+        client: httpx.AsyncClient | None = None,
+        tools: list[dict] | None = None,
+        tool_choice: str | dict | None = None,
     ) -> ChatResult:
-        url, headers, payload = self.build_request(prompt)
+        if tools or tool_choice is not None:
+            url, headers, payload = self.build_request(
+                prompt, tools=tools, tool_choice=tool_choice
+            )
+        else:
+            url, headers, payload = self.build_request(prompt)
         t0 = time.perf_counter()
         try:
             if client is not None:
@@ -167,7 +212,7 @@ class OpenAIProvider(ChatProvider):
     name = "openai"
     default_base_url = "https://api.openai.com/v1"
 
-    def build_request(self, prompt: str):
+    def build_request(self, prompt: str, tools=None, tool_choice=None):
         t = self.target
         messages = []
         if t.system:
@@ -180,6 +225,10 @@ class OpenAIProvider(ChatProvider):
             payload["temperature"] = t.temperature
         if t.top_p is not None:
             payload["top_p"] = t.top_p
+        if tools:
+            payload["tools"] = tools
+            if tool_choice is not None:
+                payload["tool_choice"] = tool_choice
         headers = {"Content-Type": "application/json"}
         key = self.api_key()
         if key:
@@ -194,6 +243,13 @@ class OpenAIProvider(ChatProvider):
         answer, inline = split_reasoning(content)
         if inline:
             reasoning = f"{reasoning}\n\n{inline}" if reasoning else inline
+        calls: list[ChatToolCall] = []
+        for tc in message.get("tool_calls") or []:
+            fn = tc.get("function") or {}
+            args, raw = parse_tool_arguments(fn.get("arguments"))
+            calls.append(ChatToolCall(
+                name=fn.get("name") or "", args=args, raw_args=raw
+            ))
         usage_in = body.get("usage") or {}
         usage = {
             k: v
@@ -206,6 +262,7 @@ class OpenAIProvider(ChatProvider):
             model=body.get("model"),
             usage=usage,
             finish_reason=choice.get("finish_reason"),
+            tool_calls=calls,
         )
 
 
@@ -237,7 +294,31 @@ class AnthropicProvider(ChatProvider):
             raise TargetError(f"api key env {env!r} is not set in the environment")
         return key
 
-    def build_request(self, prompt: str):
+    @staticmethod
+    def _translate_tools(tools: list[dict]) -> list[dict]:
+        out = []
+        for tool in tools:
+            fn = tool.get("function") or tool
+            entry: dict[str, Any] = {
+                "name": fn.get("name"),
+                "input_schema": fn.get("parameters")
+                or {"type": "object", "properties": {}},
+            }
+            if fn.get("description"):
+                entry["description"] = fn["description"]
+            out.append(entry)
+        return out
+
+    @staticmethod
+    def _translate_tool_choice(choice: str | dict) -> dict:
+        if isinstance(choice, dict):
+            name = (choice.get("function") or {}).get("name") or choice.get("name")
+            if name:
+                return {"type": "tool", "name": name}
+            return choice
+        return {"type": {"required": "any"}.get(choice, choice)}
+
+    def build_request(self, prompt: str, tools=None, tool_choice=None):
         t = self.target
         payload: dict[str, Any] = {
             "model": t.model,
@@ -250,6 +331,10 @@ class AnthropicProvider(ChatProvider):
             payload["temperature"] = t.temperature
         if t.top_p is not None:
             payload["top_p"] = t.top_p
+        if tools:
+            payload["tools"] = self._translate_tools(tools)
+            if tool_choice is not None:
+                payload["tool_choice"] = self._translate_tool_choice(tool_choice)
         headers = {
             "Content-Type": "application/json",
             "x-api-key": self.api_key() or "",
@@ -260,12 +345,19 @@ class AnthropicProvider(ChatProvider):
     def parse_response(self, body: dict) -> ChatResult:
         texts: list[str] = []
         thoughts: list[str] = []
+        calls: list[ChatToolCall] = []
         for block in body["content"]:
             kind = block.get("type")
             if kind == "text":
                 texts.append(block.get("text", ""))
             elif kind == "thinking":
                 thoughts.append(block.get("thinking", ""))
+            elif kind == "tool_use":
+                args = block.get("input")
+                calls.append(ChatToolCall(
+                    name=block.get("name") or "",
+                    args=args if isinstance(args, dict) else {},
+                ))
         answer, inline = split_reasoning("".join(texts))
         if inline:
             thoughts.append(inline)
@@ -284,6 +376,7 @@ class AnthropicProvider(ChatProvider):
             model=body.get("model"),
             usage=usage,
             finish_reason=body.get("stop_reason"),
+            tool_calls=calls,
         )
 
 
