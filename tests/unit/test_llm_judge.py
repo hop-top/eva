@@ -1,5 +1,6 @@
 # tests/unit/test_llm_judge.py
 import pytest
+from core.events import ToolCallEvent
 from unittest.mock import AsyncMock, MagicMock
 from core.evaluators.llm_judge import (
     parse_score,
@@ -322,7 +323,7 @@ def test_eva_test_case_planned_steps_optional():
 async def test_tool_correctness_matching_tools():
     llm = make_mock_llm("0.9\nCorrect tools used.")
     ev = ToolCorrectnessEvaluator(llm_adapter=llm)
-    tool_events = [{"tool_name": "search", "args": {"q": "foo"}, "result": "bar"}]
+    tool_events = [ToolCallEvent(tool_name="search", args={"q": "foo"}, result="bar")]
     score = await ev.evaluate(
         prompt="Find foo",
         response="Found foo",
@@ -337,7 +338,7 @@ async def test_tool_correctness_matching_tools():
 async def test_tool_correctness_wrong_tools():
     llm = make_mock_llm("0.1\nWrong tools used.")
     ev = ToolCorrectnessEvaluator(llm_adapter=llm)
-    tool_events = [{"tool_name": "delete", "args": {}, "result": None}]
+    tool_events = [ToolCallEvent(tool_name="delete", args={}, result=None)]
     score = await ev.evaluate(
         prompt="Find foo",
         response="Deleted something",
@@ -355,7 +356,7 @@ async def test_tool_correctness_wrong_tools():
 async def test_argument_correctness_correct_args():
     llm = make_mock_llm("0.95\nArguments match expected.")
     ev = ArgumentCorrectnessEvaluator(llm_adapter=llm)
-    tool_events = [{"tool_name": "search", "args": {"q": "python"}}]
+    tool_events = [ToolCallEvent(tool_name="search", args={"q": "python"})]
     score = await ev.evaluate(
         prompt="Search python",
         response="Results",
@@ -370,7 +371,7 @@ async def test_argument_correctness_correct_args():
 async def test_argument_correctness_wrong_args():
     llm = make_mock_llm("0.2\nArguments differ significantly.")
     ev = ArgumentCorrectnessEvaluator(llm_adapter=llm)
-    tool_events = [{"tool_name": "search", "args": {"q": "java"}}]
+    tool_events = [ToolCallEvent(tool_name="search", args={"q": "java"})]
     score = await ev.evaluate(
         prompt="Search python",
         response="Java results",
@@ -388,7 +389,7 @@ async def test_argument_correctness_wrong_args():
 async def test_tool_use_efficient():
     llm = make_mock_llm("0.9\nTools used efficiently.")
     ev = ToolUseEvaluator(llm_adapter=llm)
-    tool_events = [{"tool_name": "search", "args": {"q": "weather"}}]
+    tool_events = [ToolCallEvent(tool_name="search", args={"q": "weather"})]
     score = await ev.evaluate(
         prompt="What is the weather?",
         response="It is sunny.",

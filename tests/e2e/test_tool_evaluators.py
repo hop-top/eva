@@ -14,6 +14,7 @@ One test case per US-032 acceptance-criterion bullet:
 """
 from pathlib import Path
 import pytest
+from core.events import ToolCallEvent
 from unittest.mock import AsyncMock, MagicMock
 
 from core.dataset import Dataset, EvaTestCase, load_dataset
@@ -52,7 +53,7 @@ async def test_tool_correctness_matching_tools():
     score = await ev.evaluate(
         prompt=tc.input,
         response="Found Python docs.",
-        tool_events=[{"tool_name": "search", "args": {"query": "Python docs"}}],
+        tool_events=[ToolCallEvent(tool_name="search", args={"query": "Python docs"})],
         expected_tools=["search"],
     )
     assert isinstance(score, Score)
@@ -67,7 +68,7 @@ async def test_tool_correctness_wrong_tools():
     score = await ev.evaluate(
         prompt=tc.input,
         response="Used calculator instead.",
-        tool_events=[{"tool_name": "calculator", "args": {}}],
+        tool_events=[ToolCallEvent(tool_name="calculator", args={})],
         expected_tools=["search"],
     )
     assert isinstance(score, Score)
@@ -86,7 +87,7 @@ async def test_argument_correctness():
     score = await ev.evaluate(
         prompt=tc.input,
         response="The capital is Paris.",
-        tool_events=[{"tool_name": "lookup", "args": {"country": "France"}}],
+        tool_events=[ToolCallEvent(tool_name="lookup", args={"country": "France"})],
         expected_args={"country": "France"},
     )
     assert isinstance(score, Score)
@@ -105,7 +106,7 @@ async def test_tool_use_evaluator():
     score = await ev.evaluate(
         prompt=tc.input,
         response="Summary produced.",
-        tool_events=[{"tool_name": "summarize", "args": {"text": "..."}}],
+        tool_events=[ToolCallEvent(tool_name="summarize", args={"text": "..."})],
     )
     assert isinstance(score, Score)
     assert score.value == pytest.approx(0.7)
@@ -299,9 +300,7 @@ async def test_tool_correctness_consumes_event_sink_context():
     llm = make_mock_llm("1.0\nUsed expected tool.")
     ev = ToolCorrectnessEvaluator(llm_adapter=llm)
 
-    tool_events = [
-        {"tool_name": e.tool_name, "args": e.args} for e in sink.events
-    ]
+    tool_events = list(sink.events)
     score = await ev.evaluate(
         prompt="Look it up",
         response="found it",

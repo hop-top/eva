@@ -13,8 +13,17 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from core.events import ToolCallEvent
 from core.llm import build_vision_message
 from core.models import Score
+
+
+def _tool_summary(tool_events: list[ToolCallEvent]) -> str:
+    """JSON summary (tool name + args) of ToolCallEvent objects for a judge prompt."""
+    return json.dumps(
+        [{"tool": e.tool_name, "args": e.args} for e in tool_events],
+        indent=2,
+    )
 
 
 def parse_score(raw: str, fallback: float = 0.5) -> tuple[float, str]:
@@ -243,10 +252,7 @@ class ToolCorrectnessEvaluator:
     async def evaluate(self, prompt: str, response: str, **context: Any) -> Score:
         tool_events = context.get("tool_events", [])
         expected_tools = context.get("expected_tools", [])
-        tool_summary = json.dumps(
-            [{"tool": e.get("tool_name"), "args": e.get("args")} for e in tool_events],
-            indent=2,
-        )
+        tool_summary = _tool_summary(tool_events)
         judge_prompt = (
             f"Rate how correctly the agent used tools to complete this task on a scale 0.0-1.0. "
             f"Task: {prompt}\nTools used: {tool_summary}\nExpected tools: {expected_tools}\n"
@@ -266,10 +272,7 @@ class ArgumentCorrectnessEvaluator:
     async def evaluate(self, prompt: str, response: str, **context: Any) -> Score:
         tool_events = context.get("tool_events", [])
         expected_args = context.get("expected_args", {})
-        tool_summary = json.dumps(
-            [{"tool": e.get("tool_name"), "args": e.get("args")} for e in tool_events],
-            indent=2,
-        )
+        tool_summary = _tool_summary(tool_events)
         judge_prompt = (
             f"Rate how correctly the arguments were passed to each tool call on a scale 0.0-1.0. "
             f"Tool calls: {tool_summary}\nExpected args: {expected_args}\n"
@@ -288,10 +291,7 @@ class ToolUseEvaluator:
 
     async def evaluate(self, prompt: str, response: str, **context: Any) -> Score:
         tool_events = context.get("tool_events", [])
-        tool_summary = json.dumps(
-            [{"tool": e.get("tool_name"), "args": e.get("args")} for e in tool_events],
-            indent=2,
-        )
+        tool_summary = _tool_summary(tool_events)
         judge_prompt = (
             f"Rate the overall quality of tool usage in completing this task on a scale 0.0-1.0 "
             f"(1.0 = tools used appropriately and efficiently, 0.0 = tools misused or not used "
